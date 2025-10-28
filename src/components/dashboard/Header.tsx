@@ -1,14 +1,14 @@
 import type React from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/auth/useAuth";
+import { useAuthStore } from "@/auth/useAuth";
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
-  const { user } = useAuth();
+  const { user } = useAuthStore();
 
   return (
     <header className="bg-card border-b border-border px-6 py-4">
@@ -26,7 +26,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
           <div className="hidden md:block">
             <h1 className="text-xl font-semibold text-card-foreground">
-              Bienvenido, {user?.name}
+              Bienvenido, {user?.fullname}
             </h1>
             <p className="text-sm text-muted-foreground">
               Sistema de Distribución Médica
@@ -39,12 +39,12 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <div className="hidden sm:flex items-center gap-2 ml-4">
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
               <span className="text-sm font-medium text-primary-foreground">
-                {user?.name?.charAt(0) || "U"}
+                {user?.fullname?.charAt(0) || "U"}
               </span>
             </div>
             <div className="hidden lg:block">
               <p className="text-sm font-medium text-card-foreground">
-                {user?.name}
+                {user?.fullname}
               </p>
             </div>
           </div>

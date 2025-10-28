@@ -1,97 +1,92 @@
+// src/features/auth/auth.store.ts
+import type { LoginDto, Profile, UserType } from "./auth.interface";
+import Cookies from "js-cookie";
+import { toast } from "sonner";
 import { create } from "zustand";
-import { getCookie, setCookie, deleteCookie } from "./cookies";
-import {
-  ROLE_PERMISSIONS,
-  type Role,
-  type Permission,
-} from "./role-permissions";
+import { authService } from "./auth.service";
 
-export type User = {
-  id: string;
-  name: string;
-  roles: Role[];
-};
-
-type AuthState = {
-  user: User | null;
+interface AuthState {
+  user: Profile | null;
+  token: string | null;
+  type: UserType | null;
   isLoading: boolean;
-  error: string | null;
+  version: boolean;
+  // Login flows
+  login: (credentials: LoginDto) => Promise<void>;
+  verifyToken: () => Promise<void>;
+  logout: () => void;
+  loadFromStorage: () => void;
+  getType: () => UserType | null;
+}
 
-  // acciones
-  restore: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-
-  // RBAC
-  hasRole: (r: Role) => boolean;
-  can: (p: Permission) => boolean;
-};
-
-export const useAuth = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  token: null,
+  type: null,
   isLoading: false,
-  error: null,
+  version: false,
 
-  // Lee cookie y obtiene /me (si aplica)
-  restore: async () => {
-    const token = getCookie("auth_token");
-    if (!token) return;
-    set({ isLoading: true, error: null });
+  login: async (credentials) => {
+    set({ isLoading: true });
     try {
-      // Si tienes endpoint real:
-      // const me = await http.get('/auth/me').then(r => r.data as User);
-      // Mock local (quítalo cuando conectes backend):
-      const me: User = { id: "u1", name: "Dr. Demo", roles: ["doctor"] };
-      set({ user: me });
-    } catch (e) {
-      console.error(e);
-      set({ user: null, error: "No se pudo restaurar la sesión" });
-      deleteCookie("auth_token");
-    } finally {
+      const { access_token, user } = await authService.login(credentials);
+      Cookies.set("auth_token", access_token, { expires: 3 });
+      Cookies.set("auth_type", user.type);
+      Cookies.set("auth_user", JSON.stringify(user));
+
+      const version = localStorage.getItem("view_version");
+      if (!version) localStorage.setItem("view_version", "1");
+
+      set({
+        user,
+        token: access_token,
+        type: user.type as UserType,
+        isLoading: false,
+        version: true,
+      });
+    } catch (err) {
       set({ isLoading: false });
+      toast.error("Correo o contraseña incorrectos", {
+        position: "top-center",
+      });
+      throw err;
     }
   },
 
-  // Login: simula petición y setea cookie
-  login: async (email, password) => {
-    set({ isLoading: true, error: null });
+  logout: () => {
+    localStorage.clear();
+    Cookies.remove("auth_token");
+    Cookies.remove("auth_type");
+    Cookies.remove("auth_user");
+    set({ user: null, token: null, type: null });
+  },
+
+  loadFromStorage: () => {
+    const token = Cookies.get("auth_token");
+    const type = (Cookies.get("auth_type") as UserType | null) ?? null;
+    const user = Cookies.get("auth_user");
+    if (token && user && type) {
+      set({ token, user: JSON.parse(user), type });
+    }
+  },
+
+  verifyToken: async () => {
     try {
-      // Ejemplo real:
-      // const { data } = await http.post('/auth/login', { email, password });
-      // const { token, user } = data as { token: string; user: User };
-      // setCookie('auth_token', token, 7);
-      // set({ user });
-      console.log("Login", email, password);
-      // Mock local (reemplaza por lo de arriba):
-      await new Promise((r) => setTimeout(r, 600));
-      // decide rol por email para probar
-      const role: Role = email.includes("admin") ? "admin" : "doctor";
-      setCookie("auth_token", "mock-token", 7);
-      set({ user: { id: "u1", name: "Usuario", roles: [role] } });
-    } catch (e) {
-      set({ error: "Credenciales inválidas" });
-      throw e;
-    } finally {
+      const { valid, user } = await authService.verifyToken();
+      if (!valid) {
+        Cookies.remove("auth_token");
+        Cookies.remove("auth_type");
+        Cookies.remove("auth_user");
+        set({ user: null, token: null, type: null });
+        throw new Error("Token no válido");
+      }
+      const token = Cookies.get("auth_token") ?? null;
+      set({ user, token, type: user.type as UserType, isLoading: false });
+    } catch (err) {
       set({ isLoading: false });
+      throw err;
     }
   },
-
-  logout: async () => {
-    try {
-      // await http.post('/auth/logout'); // si tu backend invalida cookie
-    } finally {
-      deleteCookie("auth_token");
-      set({ user: null });
-    }
-  },
-
-  hasRole: (r) => !!get().user?.roles.includes(r),
-
-  can: (perm) => {
-    const roles = get().user?.roles ?? [];
-    // union de permisos por cada rol
-    const perms = new Set<Permission>();
-    roles.forEach((r) => ROLE_PERMISSIONS[r].forEach((p) => perms.add(p)));
-    return perms.has(perm);
-  },
+  // === AuthZ (NUEVO) ===
+  getType: () => get().type,
 }));

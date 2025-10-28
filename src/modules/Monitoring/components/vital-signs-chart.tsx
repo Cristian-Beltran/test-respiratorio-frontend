@@ -17,45 +17,47 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
-import { CHART_COLORS } from "@/types/constants";
+import type { SessionData } from "@/modules/Session/session.interface";
 
 interface VitalSignsChartProps {
-  data: Array<{
-    timestamp: string;
-    pulse?: number;
-    spo2?: number;
-  }>;
+  /** Registros crudos del backend (nueva interfaz) */
+  data: SessionData[];
   title?: string;
   description?: string;
-  showPulse?: boolean;
+  showBpm?: boolean;
   showSpo2?: boolean;
+  showRespRate?: boolean;
 }
 
 export function VitalSignsChart({
   data,
   title = "Signos Vitales",
-  description = "Evolución de frecuencia cardíaca y saturación de oxígeno",
-  showPulse = true,
+  description = "Evolución de frecuencia cardíaca, saturación de oxígeno y frecuencia respiratoria",
+  showBpm = true,
   showSpo2 = true,
+  showRespRate = true,
 }: VitalSignsChartProps) {
   const chartConfig = {
-    pulse: {
-      label: "Frecuencia Cardíaca (bpm)",
-      color: CHART_COLORS.PULSE,
-    },
-    spo2: {
-      label: "Saturación O2 (%)",
-      color: CHART_COLORS.SPO2,
-    },
+    bpm: { label: "Frecuencia Cardíaca (bpm)" },
+    spo2: { label: "Saturación O₂ (%)" },
+    respRate: { label: "Respiración (rpm)" },
   };
 
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString("es-ES", {
+  // Adaptar SessionData -> puntos del chart
+  const points = (data ?? []).map((r) => ({
+    timestamp: r.recordedAt,
+    bpm: r.bpm ?? null,
+    spo2: r.spo2 ?? null,
+    respRate: r.respRate ?? null,
+  }));
+
+  const formatTime = (timestamp: string) =>
+    new Date(timestamp).toLocaleTimeString("es-ES", {
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
 
   return (
     <Card>
@@ -64,11 +66,17 @@ export function VitalSignsChart({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig}>
-          <ResponsiveContainer width="100%" height={300}>
+        <ChartContainer
+          config={{
+            bpm: { label: chartConfig.bpm.label },
+            spo2: { label: chartConfig.spo2.label },
+            respRate: { label: chartConfig.respRate.label },
+          }}
+        >
+          <ResponsiveContainer width="100%" height={320}>
             <LineChart
-              data={data}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              data={points}
+              margin={{ top: 8, right: 28, left: 12, bottom: 8 }}
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
@@ -77,28 +85,58 @@ export function VitalSignsChart({
                 className="text-xs fill-muted-foreground"
                 interval="preserveStartEnd"
               />
-              <YAxis className="text-xs fill-muted-foreground" />
+              {/* Eje izquierdo: BPM / SpO2 */}
+              <YAxis yAxisId="left" className="text-xs fill-muted-foreground" />
+              {/* Eje derecho: RespRate */}
+              {showRespRate && (
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  className="text-xs fill-muted-foreground"
+                  domain={[0, 60]}
+                />
+              )}
+
               <ChartTooltip
                 content={<ChartTooltipContent labelFormatter={formatTime} />}
               />
-              {showPulse && (
+              <Legend />
+
+              {showBpm && (
                 <Line
+                  yAxisId="left"
                   type="monotone"
-                  dataKey="pulse"
-                  stroke={chartConfig.pulse.color}
+                  dataKey="bpm"
+                  name={chartConfig.bpm.label}
                   strokeWidth={2}
-                  dot={{ fill: chartConfig.pulse.color, strokeWidth: 2, r: 3 }}
                   activeDot={{ r: 5 }}
+                  connectNulls
                 />
               )}
+
               {showSpo2 && (
                 <Line
+                  yAxisId="left"
                   type="monotone"
                   dataKey="spo2"
-                  stroke={chartConfig.spo2.color}
+                  name={chartConfig.spo2.label}
                   strokeWidth={2}
-                  dot={{ fill: chartConfig.spo2.color, strokeWidth: 2, r: 3 }}
                   activeDot={{ r: 5 }}
+                  connectNulls
+                />
+              )}
+
+              {showRespRate && (
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="respRate"
+                  name={chartConfig.respRate.label}
+                  strokeDasharray="5 3"
+                  strokeWidth={2}
+                  dot={{ strokeWidth: 2, r: 3 }}
+                  activeDot={{ r: 5 }}
+                  connectNulls
                 />
               )}
             </LineChart>

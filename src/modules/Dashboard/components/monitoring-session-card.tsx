@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Clock, FileText } from "lucide-react";
+import { Clock } from "lucide-react";
 import type { MonitoringSession } from "@/types/monitoring-session";
 
 interface MonitoringSessionCardProps {
@@ -8,10 +7,7 @@ interface MonitoringSessionCardProps {
   onViewReport?: () => void;
 }
 
-export function MonitoringSessionCard({
-  session,
-  onViewReport,
-}: MonitoringSessionCardProps) {
+export function MonitoringSessionCard({ session }: MonitoringSessionCardProps) {
   const sessionDate = new Date(session.sessionDate).toLocaleDateString(
     "es-ES",
     {
@@ -47,12 +43,7 @@ export function MonitoringSessionCard({
             </div>
           )}
 
-          <div className="flex gap-2">
-            <Button onClick={onViewReport} variant="outline" size="sm">
-              <FileText className="mr-2 h-4 w-4" />
-              Ver Reporte
-            </Button>
-          </div>
+          <div className="flex gap-2"></div>
         </div>
       </CardContent>
     </Card>

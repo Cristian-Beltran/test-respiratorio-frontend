@@ -13,53 +13,99 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
+  ReferenceLine,
+  ReferenceArea,
+  Legend,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
-import { CHART_COLORS } from "@/types/constants";
-import type { BreathingPhase } from "@/types/breathing-phase";
+import type { SessionData } from "@/modules/Session/session.interface";
+
+import type { TooltipProps } from "recharts";
+import type { Payload } from "recharts/types/component/DefaultTooltipContent";
+
+type BreathingPhase = "inhale" | "hold" | "exhale" | "rest";
+
+type Point = {
+  timestamp: string;
+  pressure: number;
+  baseline?: number;
+  phase: BreathingPhase;
+};
 
 interface BreathingPatternChartProps {
-  data: Array<{
-    timestamp: string;
-    pressureVoltage: number;
-    breathingPhase: BreathingPhase;
-  }>;
+  /** Registros crudos del backend (nueva interfaz) */
+  data: SessionData[];
   title?: string;
   description?: string;
+  showBaseline?: boolean;
+  showPhaseBands?: boolean;
+}
+
+/** Heurística simple para derivar fase a partir de los nuevos campos */
+function derivePhase(r: SessionData): BreathingPhase {
+  const baseline = r.respBaseline ?? 0;
+  const v = (r.airflowValue ?? 0) - baseline;
+  const diff = Math.abs(r.respDiffAbs ?? v);
+
+  // Si tenemos canal digital del secundario
+  if (r.resp2Positive === true) return "exhale";
+  if (r.resp2Positive === false) return "inhale";
+
+  // Sin canal digital: usar diffs
+  if (diff < 0.05) return "rest"; // zona muerta
+  if (diff >= 0.05 && diff < 0.15) return "hold"; // transición/retención
+  return v >= 0 ? "inhale" : "exhale";
 }
 
 export function BreathingPatternChart({
   data,
   title = "Patrón Respiratorio",
-  description = "Análisis de la capacidad pulmonar basado en sensor de presión",
+  description = "Análisis del patrón respiratorio basado en presión y fases",
+  showBaseline = true,
+  showPhaseBands = true,
 }: BreathingPatternChartProps) {
   const chartConfig = {
-    pressureVoltage: {
-      label: "Presión (V)",
-      color: CHART_COLORS.PRESSURE,
-    },
+    airflowValue: { label: "Presión (V)" },
+    baseline: { label: "Línea Base" },
   };
 
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString("es-ES", {
+  const points: Point[] = (data ?? []).map((r) => ({
+    timestamp: r.recordedAt,
+    pressure: r.airflowValue ?? 0,
+    baseline: r.respBaseline ?? undefined,
+    phase: derivePhase(r),
+  }));
+
+  const formatTime = (timestamp: string) =>
+    new Date(timestamp).toLocaleTimeString("es-ES", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
     });
-  };
 
   const getPhaseColor = (phase: BreathingPhase) => {
     switch (phase) {
       case "inhale":
-        return "bg-blue-100 text-blue-800";
+        return {
+          bg: "rgba(37,99,235,0.10)",
+          badge: "bg-blue-100 text-blue-800",
+        };
       case "hold":
-        return "bg-yellow-100 text-yellow-800";
+        return {
+          bg: "rgba(234,179,8,0.12)",
+          badge: "bg-yellow-100 text-yellow-800",
+        };
       case "exhale":
-        return "bg-green-100 text-green-800";
+        return {
+          bg: "rgba(22,163,74,0.12)",
+          badge: "bg-green-100 text-green-800",
+        };
       case "rest":
-        return "bg-gray-100 text-gray-800";
       default:
-        return "bg-gray-100 text-gray-800";
+        return {
+          bg: "rgba(107,114,128,0.10)",
+          badge: "bg-gray-100 text-gray-800",
+        };
     }
   };
 
@@ -78,44 +124,93 @@ export function BreathingPatternChart({
     }
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="rounded-lg border bg-background p-3 shadow-md">
-          <p className="text-sm font-medium">{formatTime(label)}</p>
+  const CustomTooltip: React.FC<TooltipProps<number, string>> = ({
+    active,
+    payload,
+    label,
+  }) => {
+    if (!active || !payload || payload.length === 0) return null;
+
+    const p0 = payload[0] as Payload<number, string>;
+    const d = p0.payload as Point;
+
+    const colors = getPhaseColor(d.phase);
+    const labelStr = typeof label === "string" ? label : String(label);
+    const pressure =
+      typeof p0.value === "number"
+        ? p0.value
+        : Array.isArray(p0.value)
+          ? Number(p0.value[0])
+          : Number(p0.value);
+
+    return (
+      <div className="rounded-lg border bg-background p-3 shadow-md">
+        <p className="text-sm font-medium">{formatTime(labelStr)}</p>
+        <p className="text-sm">
+          <span className="font-medium">Presión:</span> {pressure} V
+        </p>
+        {typeof d.baseline === "number" && (
           <p className="text-sm">
-            <span className="font-medium">Presión:</span> {payload[0].value}V
+            <span className="font-medium">Base:</span> {d.baseline} V
           </p>
-          <div className="mt-1">
-            <Badge
-              className={getPhaseColor(data.breathingPhase)}
-              variant="secondary"
-            >
-              {getPhaseLabel(data.breathingPhase)}
-            </Badge>
-          </div>
+        )}
+        <div className="mt-1">
+          <Badge className={colors.badge} variant="secondary">
+            {getPhaseLabel(d.phase)}
+          </Badge>
         </div>
-      );
-    }
-    return null;
+      </div>
+    );
   };
 
-  // Calcular estadísticas
+  // Estadísticas simples
   const avgPressure =
-    data.length > 0
+    points.length > 0
       ? (
-          data.reduce((sum, d) => sum + d.pressureVoltage, 0) / data.length
+          points.reduce((sum, d) => sum + (d.pressure ?? 0), 0) / points.length
         ).toFixed(2)
       : "0";
   const maxPressure =
-    data.length > 0
-      ? Math.max(...data.map((d) => d.pressureVoltage)).toFixed(2)
+    points.length > 0
+      ? Math.max(...points.map((d) => d.pressure ?? 0)).toFixed(2)
       : "0";
   const minPressure =
-    data.length > 0
-      ? Math.min(...data.map((d) => d.pressureVoltage)).toFixed(2)
+    points.length > 0
+      ? Math.min(...points.map((d) => d.pressure ?? 0)).toFixed(2)
       : "0";
+
+  // Bandas de fase continuas (en X)
+  type Band = { x1: string; x2: string; phase: BreathingPhase };
+  const bands: Band[] = [];
+  if (showPhaseBands && points.length > 1) {
+    let startIdx = 0;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const cur = points[i];
+      if (prev.phase !== cur.phase) {
+        bands.push({
+          x1: points[startIdx].timestamp,
+          x2: prev.timestamp,
+          phase: prev.phase,
+        });
+        startIdx = i;
+      }
+    }
+    bands.push({
+      x1: points[startIdx].timestamp,
+      x2: points[points.length - 1].timestamp,
+      phase: points[startIdx].phase,
+    });
+  }
+
+  // baseline media para ReferenceLine
+  const avgBaseline = (() => {
+    const vals = points
+      .map((p) => p.baseline)
+      .filter((v): v is number => typeof v === "number");
+    if (!vals.length) return undefined;
+    return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(3);
+  })();
 
   return (
     <Card>
@@ -130,12 +225,13 @@ export function BreathingPatternChart({
         </CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
+
       <CardContent>
-        <ChartContainer config={chartConfig}>
-          <ResponsiveContainer width="100%" height={300}>
+        <ChartContainer config={{ pressure: { label: "Presión (V)" } }}>
+          <ResponsiveContainer width="100%" height={320}>
             <AreaChart
-              data={data}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              data={points}
+              margin={{ top: 8, right: 28, left: 12, bottom: 8 }}
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
@@ -153,14 +249,45 @@ export function BreathingPatternChart({
                   position: "insideLeft",
                 }}
               />
+
+              {/* Bandas por fase */}
+              {showPhaseBands &&
+                bands.map((b, idx) => {
+                  const c = getPhaseColor(b.phase);
+                  return (
+                    <ReferenceArea
+                      key={`${b.x1}-${b.x2}-${idx}`}
+                      x1={b.x1}
+                      x2={b.x2}
+                      strokeOpacity={0}
+                      fill={c.bg}
+                    />
+                  );
+                })}
+
+              {/* Línea Base promedio */}
+              {showBaseline && typeof avgBaseline === "number" && (
+                <ReferenceLine
+                  y={avgBaseline}
+                  strokeDasharray="4 4"
+                  label={{
+                    value: chartConfig.baseline.label,
+                    position: "insideTopRight",
+                  }}
+                />
+              )}
+
+              <Legend />
               <ChartTooltip content={<CustomTooltip />} />
+
               <Area
                 type="monotone"
-                dataKey="pressureVoltage"
-                stroke={chartConfig.pressureVoltage.color}
-                fill={chartConfig.pressureVoltage.color}
-                fillOpacity={0.3}
+                dataKey="pressure"
+                name={chartConfig.airflowValue.label}
+                fillOpacity={0.28}
                 strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
               />
             </AreaChart>
           </ResponsiveContainer>

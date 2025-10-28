@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { VitalSignsChart } from "./components/vital-signs-chart";
 import { BreathingPatternChart } from "./components/breathing-pattern-chart";
 import {
@@ -10,54 +10,184 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Square, Wifi, WifiOff } from "lucide-react";
-import type { SensorReading } from "@/types/sensor-reading";
-import { useAuth } from "@/auth/useAuth";
+import { Play, Square, Wifi, WifiOff, UserRound } from "lucide-react";
+import { useAuthStore } from "@/auth/useAuth";
+import type { Patient } from "@/modules/Patient/patient.interface";
+import { patientService } from "@/modules/Patient/data/patient.service";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getMqttClient, closeMqttClient } from "@/lib/mqtt";
+import type { MqttClient } from "mqtt";
+import type { SessionData } from "@/modules/Session/session.interface";
+
+// === Tipos del payload que envía el ESP32 vía MQTT ===
+type TelemetryPayload = {
+  serialNumber: string;
+  patientId?: string;
+  recordedAt: string; // ISO
+
+  // Respiración primaria
+  airflowValue?: number;
+  respBaseline?: number;
+  respDiffAbs?: number;
+  respRate?: number;
+
+  // Cardíaco / SpO2
+  bpm?: number;
+  spo2?: number;
+
+  // Respiración secundaria
+  resp2Adc?: number;
+  resp2Positive?: boolean;
+
+  // Legado
+  micAirValue?: number;
+};
+
+// === Estructura interna en frontend para RT ===
+type RTReading = {
+  id: string;
+  serialNumber: string;
+  timestamp: string; // ISO
+  patientId?: string;
+
+  // Respiración primaria
+  airflowValue?: number;
+  respBaseline?: number;
+  respDiffAbs?: number;
+  respRate?: number;
+
+  // Cardíaco / SpO2
+  bpm?: number;
+  spo2?: number;
+
+  // Respiración secundaria
+  resp2Adc?: number;
+  resp2Positive?: boolean;
+
+  // Legado
+  micAirValue?: number;
+};
 
 export default function MonitoringPage() {
-  const { user } = useAuth();
+  const { user } = useAuthStore();
+
+  // Paciente seleccionado
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loadingPatients, setLoadingPatients] = useState(false);
+  const [patientId, setPatientId] = useState<string>("");
+
+  // Estado conexión/monitor
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [realtimeData, setRealtimeData] = useState<SensorReading[]>([]);
 
-  // Simular conexión ESP32 y datos en tiempo real
+  // Datos en tiempo real
+  const [realtimeData, setRealtimeData] = useState<RTReading[]>([]);
+
+  // MQTT client ref
+  const clientRef = useRef<MqttClient | null>(null);
+
+  // Cargar pacientes
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let mounted = true;
+    (async () => {
+      setLoadingPatients(true);
+      try {
+        const data = await patientService.findAll();
+        if (!mounted) return;
+        setPatients(data ?? []);
+      } finally {
+        if (mounted) setLoadingPatients(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-    if (isMonitoring) {
-      setIsConnected(true);
-      interval = setInterval(() => {
-        const newReading: SensorReading = {
-          id: Math.random().toString(36).substr(2, 9),
-          sessionId: "current-session",
-          timestamp: new Date().toISOString(),
-          pulseBpm: Math.round(70 + Math.random() * 30),
-          spo2Percentage: Math.round((96 + Math.random() * 4) * 100) / 100,
-          pressureVoltage: Math.round((2 + Math.random() * 2) * 1000) / 1000,
-          breathingPhase: ["inhale", "hold", "exhale", "rest"][
-            Math.floor(Math.random() * 4)
-          ] as any,
-          createdAt: new Date().toISOString(),
-        };
-
-        setRealtimeData((prev) => {
-          const updated = [...prev, newReading];
-          // Mantener solo los últimos 50 puntos para mejor rendimiento
-          return updated.slice(-50);
-        });
-      }, 3000); // Nueva lectura cada 3 segundos
-    } else {
+  // Conectar/Desconectar MQTT según estado de monitoreo
+  useEffect(() => {
+    if (!isMonitoring) {
+      try {
+        clientRef.current?.unsubscribe("devices/+/telemetry");
+      } catch {
+        // no-op
+      }
+      closeMqttClient();
+      clientRef.current = null;
       setIsConnected(false);
+      setRealtimeData([]);
+      return;
     }
 
-    return () => {
-      if (interval) clearInterval(interval);
+    const client = getMqttClient();
+    clientRef.current = client;
+
+    const onConnect = () => {
+      setIsConnected(true);
+      client.subscribe("devices/+/telemetry", { qos: 0 });
     };
-  }, [isMonitoring]);
+
+    const onReconnect = () => setIsConnected(false);
+    const onClose = () => setIsConnected(false);
+    const onError = () => setIsConnected(false);
+
+    const onMessage = (_topic: string, payload: Buffer) => {
+      try {
+        const data = JSON.parse(payload.toString()) as TelemetryPayload;
+
+        if (patientId && data.patientId && data.patientId !== patientId) return;
+
+        const reading: RTReading = {
+          id: crypto.randomUUID(),
+          serialNumber: data.serialNumber,
+          timestamp: data.recordedAt || new Date().toISOString(),
+          patientId: data.patientId,
+          airflowValue: data.airflowValue,
+          respBaseline: data.respBaseline,
+          respDiffAbs: data.respDiffAbs,
+          respRate: data.respRate,
+          bpm: data.bpm,
+          spo2: data.spo2,
+          resp2Adc: data.resp2Adc,
+          resp2Positive: data.resp2Positive,
+          micAirValue: data.micAirValue,
+        };
+
+        setRealtimeData((prev) => [...prev.slice(-299), reading]); // buffer 300
+      } catch (e) {
+        console.error("MQTT payload inválido:", e);
+      }
+    };
+
+    client.on("connect", onConnect);
+    client.on("reconnect", onReconnect);
+    client.on("close", onClose);
+    client.on("error", onError);
+    client.on("message", onMessage);
+
+    return () => {
+      try {
+        client.off("connect", onConnect);
+        client.off("reconnect", onReconnect);
+        client.off("close", onClose);
+        client.off("error", onError);
+        client.off("message", onMessage);
+        client.unsubscribe("devices/+/telemetry");
+      } catch {
+        // no-op
+      }
+    };
+  }, [isMonitoring, patientId]);
 
   const startMonitoring = () => {
-    setIsMonitoring(true);
     setRealtimeData([]);
+    setIsMonitoring(true);
   };
 
   const stopMonitoring = () => {
@@ -65,41 +195,95 @@ export default function MonitoringPage() {
     setRealtimeData([]);
   };
 
+  // Nombre de paciente
+  const patientLabel = useMemo(() => {
+    const p = patients.find((x) => x.id === patientId);
+    if (!p) return patientId ? patientId : "Todos los dispositivos";
+    const fn = p.user?.fullname ?? "";
+    return `${fn}`.trim() || p.id;
+  }, [patientId, patients]);
+
+  // Lectura más reciente
   const latestReading = realtimeData[realtimeData.length - 1];
+
+  // ===== Adaptadores -> los charts esperan SessionData[] y hacen su propio mapping =====
+  const rtAsSessionData: SessionData[] = useMemo(
+    () =>
+      realtimeData.map<SessionData>((r) => ({
+        id: r.id, // puede ser UUID local
+        recordedAt: r.timestamp,
+        // respiración primaria
+        airflowValue: r.airflowValue ?? null,
+        respBaseline: r.respBaseline ?? null,
+        respDiffAbs: r.respDiffAbs ?? null,
+        respRate: r.respRate ?? null,
+        // cardio / SpO2
+        bpm: r.bpm ?? null,
+        spo2: r.spo2 ?? null,
+        // respiración secundaria
+        resp2Adc: r.resp2Adc ?? null,
+        resp2Positive:
+          typeof r.resp2Positive === "boolean" ? r.resp2Positive : null,
+        // legado
+        micAirValue: r.micAirValue ?? null,
+      })),
+    [realtimeData],
+  );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             Monitoreo en Tiempo Real
           </h2>
           <p className="text-muted-foreground">
-            {user?.roles.includes("doctor")
-              ? "Supervisa los signos vitales de tus pacientes en tiempo real"
+            {user?.type?.includes?.("doctor")
+              ? "Supervisa en vivo por paciente"
               : "Monitoreo continuo de tus signos vitales"}
           </p>
         </div>
-        <div className="flex items-center gap-4">
+
+        {/* Selector de Paciente + Estado Conexión + CTA */}
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <select
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm bg-white dark:bg-gray-800 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isMonitoring}
-              defaultValue="ESP32-001"
+            <Select
+              value={patientId}
+              onValueChange={setPatientId}
+              disabled={isMonitoring || loadingPatients}
             >
-              <option value="ESP32-001">ESP32-001 (Sala A)</option>
-              <option value="ESP32-002">ESP32-002 (Sala B)</option>
-              <option value="ESP32-003">ESP32-003 (Sala C)</option>
-              <option value="ESP32-004">ESP32-004 (Portátil)</option>
-            </select>
+              <SelectTrigger className="min-w-[220px]">
+                <SelectValue
+                  placeholder={
+                    loadingPatients
+                      ? "Cargando pacientes..."
+                      : "Selecciona paciente (opcional)"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todos</SelectItem>
+                {patients.map((p) => {
+                  const name = `${p.user?.fullname}`.trim() || p.id;
+                  return (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex items-center gap-2">
+                        <UserRound className="h-3.5 w-3.5" />
+                        <span>{name}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
+
           <div className="flex items-center gap-2">
             {isConnected ? (
               <>
                 <Wifi className="h-4 w-4 text-green-600" />
-                <Badge className="bg-green-100 text-green-800">
-                  ESP32 Conectado
-                </Badge>
+                <Badge className="bg-green-100 text-green-800">Conectado</Badge>
               </>
             ) : (
               <>
@@ -108,6 +292,7 @@ export default function MonitoringPage() {
               </>
             )}
           </div>
+
           {isMonitoring ? (
             <Button onClick={stopMonitoring} variant="destructive">
               <Square className="mr-2 h-4 w-4" />
@@ -116,7 +301,7 @@ export default function MonitoringPage() {
           ) : (
             <Button onClick={startMonitoring}>
               <Play className="mr-2 h-4 w-4" />
-              Iniciar Monitoreo
+              Iniciar
             </Button>
           )}
         </div>
@@ -126,7 +311,7 @@ export default function MonitoringPage() {
       {latestReading && (
         <Card>
           <CardHeader>
-            <CardTitle>Lecturas Actuales</CardTitle>
+            <CardTitle>{patientLabel}</CardTitle>
             <CardDescription>
               Última actualización:{" "}
               {new Date(latestReading.timestamp).toLocaleTimeString("es-ES")}
@@ -139,23 +324,24 @@ export default function MonitoringPage() {
                   Frecuencia Cardíaca
                 </p>
                 <p className="text-3xl font-bold text-red-600">
-                  {latestReading.pulseBpm} bpm
+                  {latestReading.bpm ?? "—"} {latestReading.bpm ? "bpm" : ""}
                 </p>
               </div>
               <div className="text-center p-4 rounded-lg border">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Saturación O2
+                  Flujo Respiratorio
                 </p>
                 <p className="text-3xl font-bold text-blue-600">
-                  {latestReading.spo2Percentage}%
+                  {latestReading.airflowValue ?? "—"}
                 </p>
               </div>
               <div className="text-center p-4 rounded-lg border">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Presión Respiratoria
+                  SpO₂
                 </p>
                 <p className="text-3xl font-bold text-green-600">
-                  {latestReading.pressureVoltage}V
+                  {latestReading.spo2 ?? "—"}
+                  {latestReading.spo2 ? "%" : ""}
                 </p>
               </div>
             </div>
@@ -163,32 +349,29 @@ export default function MonitoringPage() {
         </Card>
       )}
 
-      {/* Gráficos en tiempo real */}
-      {realtimeData.length > 0 && (
+      {/* Gráficos RT */}
+      {rtAsSessionData.length > 0 && (
         <div className="space-y-6">
           <VitalSignsChart
-            data={realtimeData.map((r) => ({
-              timestamp: r.timestamp,
-              pulse: r.pulseBpm,
-              spo2: r.spo2Percentage,
-            }))}
-            title="Signos Vitales - Tiempo Real"
-            description="Actualización automática cada 3 segundos"
+            data={rtAsSessionData}
+            title={`Signos Vitales – ${patientLabel}`}
+            description="Stream por MQTT (WS)"
+            showBpm
+            showSpo2
+            showRespRate
           />
-
           <BreathingPatternChart
-            data={realtimeData.map((r) => ({
-              timestamp: r.timestamp,
-              pressureVoltage: r.pressureVoltage!,
-              breathingPhase: r.breathingPhase!,
-            }))}
-            title="Patrón Respiratorio - Tiempo Real"
-            description="Análisis continuo de la capacidad pulmonar"
+            data={rtAsSessionData}
+            title="Patrón Respiratorio – Tiempo Real"
+            description="Fase derivada del sensor secundario y mic"
+            showBaseline
+            showPhaseBands
           />
         </div>
       )}
 
-      {!isMonitoring && realtimeData.length === 0 && (
+      {/* Empty state */}
+      {!isMonitoring && rtAsSessionData.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="text-center space-y-4">
@@ -198,8 +381,8 @@ export default function MonitoringPage() {
               <div>
                 <h3 className="text-lg font-semibold">Monitoreo Detenido</h3>
                 <p className="text-muted-foreground">
-                  Haz clic en "Iniciar Monitoreo" para comenzar a recibir datos
-                  del ESP32
+                  Selecciona paciente (opcional) y presiona “Iniciar” para
+                  suscribirte al stream MQTT
                 </p>
               </div>
             </div>

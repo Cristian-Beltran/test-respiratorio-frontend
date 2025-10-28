@@ -1,5 +1,5 @@
 import type React from "react";
-import { useLocation, Link } from "react-router-dom";
+import { useLocation, Link, useNavigate } from "react-router-dom";
 import { useTheme } from "../../contexts/ThemeContext";
 import {
   Activity,
@@ -15,8 +15,8 @@ import {
   Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/auth/useAuth";
 import { cn } from "../../lib/utils";
+import { useAuthStore } from "@/auth/useAuth";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -24,22 +24,24 @@ interface SidebarProps {
 }
 
 const navigationItems = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
+  { name: "Dashboard", href: "/", icon: Home },
   { name: "Doctores", href: "/doctor", icon: UsersRound },
   { name: "Pacientes", href: "/patients", icon: User },
   { name: "Familiares", href: "/family", icon: Users },
-  { name: "Datos en tiempo Real", href: "/moni  ", icon: Wifi },
+  { name: "Datos en tiempo Real", href: "/monitoring", icon: Wifi },
   { name: "Dispositivos", href: "/devices", icon: Microchip },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useTheme();
 
   const handleLogout = () => {
     logout();
     onClose();
+    navigate("/login");
   };
 
   return (
@@ -125,7 +127,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             {user && (
               <div className="px-3 py-2 bg-sidebar-accent/50 rounded-lg">
                 <p className="text-sm font-medium text-sidebar-foreground">
-                  {user.name}
+                  {user.fullname}
                 </p>
                 <p className="text-xs text-sidebar-foreground/60">
                   {
