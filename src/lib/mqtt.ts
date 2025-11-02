@@ -1,10 +1,12 @@
-import { connect, MqttClient, type IClientOptions } from "mqtt";
+import mqtt from "mqtt";
+// Importa SOLO EL TIPO (no se emite en runtime)
+import type { IClientOptions, MqttClient } from "mqtt";
 
 /**
  * Construye el URL del broker MQTT WS a partir de env y/o defaults locales.
  * Ej: VITE_MQTT_URL=ws://192.168.1.50:9001
  */
-const DEFAULT_URL = import.meta.env.VITE_MQTT_URL || "ws://192.168.1.100:9001";
+const DEFAULT_URL = "ws://localhost:9001";
 
 /**
  * Opciones sensatas para LAN. Ajusta clientId para evitar colisiones.
@@ -24,7 +26,7 @@ let _client: MqttClient | null = null;
 
 export function getMqttClient(url = DEFAULT_URL): MqttClient {
   if (_client) return _client;
-  _client = connect(url, opts);
+  _client = mqtt.connect(url, opts);
   return _client;
 }
 

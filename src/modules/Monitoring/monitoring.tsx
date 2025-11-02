@@ -82,6 +82,7 @@ export default function MonitoringPage() {
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [patientId, setPatientId] = useState<string>("");
 
+  const ALL = "__ALL__";
   // Estado conexión/monitor
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -249,8 +250,8 @@ export default function MonitoringPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Select
-              value={patientId}
-              onValueChange={setPatientId}
+              value={patientId ? String(patientId) : ALL}
+              onValueChange={(v) => setPatientId(v === ALL ? "" : v)}
               disabled={isMonitoring || loadingPatients}
             >
               <SelectTrigger className="min-w-[220px]">
@@ -263,11 +264,12 @@ export default function MonitoringPage() {
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value={ALL}>Todos</SelectItem>
                 {patients.map((p) => {
-                  const name = `${p.user?.fullname}`.trim() || p.id;
+                  const id = String(p.id); // blindaje por si viene numérico
+                  const name = (p.user?.fullname ?? "").trim() || id;
                   return (
-                    <SelectItem key={p.id} value={p.id}>
+                    <SelectItem key={id} value={id}>
                       <div className="flex items-center gap-2">
                         <UserRound className="h-3.5 w-3.5" />
                         <span>{name}</span>
