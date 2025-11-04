@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { VitalSignsChart } from "./components/vital-signs-chart";
 import { BreathingPatternChart } from "./components/breathing-pattern-chart";
+import { v4 as uuidv4 } from "uuid";
 import {
   Card,
   CardContent,
@@ -145,7 +146,7 @@ export default function MonitoringPage() {
         if (patientId && data.patientId && data.patientId !== patientId) return;
 
         const reading: RTReading = {
-          id: crypto.randomUUID(),
+          id: uuidv4(),
           serialNumber: data.serialNumber,
           timestamp: data.recordedAt || new Date().toISOString(),
           patientId: data.patientId,
