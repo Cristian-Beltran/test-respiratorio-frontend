@@ -10,6 +10,8 @@ import PatientPage from "./modules/Patient/patient";
 import FamilyPage from "./modules/Family/family";
 import SessionPage from "./modules/Session/session";
 import MonitoringPage from "./modules/Monitoring/monitoring";
+import MePage from "./modules/MeData/me.page";
+import FamilyPatientsPage from "./modules/FamilyPatient/familypatient-page";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -28,6 +30,10 @@ export const router = createBrowserRouter([
       { path: "patients", element: <PatientPage /> },
       { path: "family", element: <FamilyPage /> },
       { path: "session/:id", element: <SessionPage /> },
+
+      { path: "me", element: <MePage /> },
+      { path: "me/:id", element: <MePage /> },
+      { path: "family/patients", element: <FamilyPatientsPage /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

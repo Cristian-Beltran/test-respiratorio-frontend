@@ -15,6 +15,7 @@ import type { MonitoringSession } from "@/types/monitoring-session";
 import type { Session, SessionData } from "@/modules/Session/session.interface";
 import { sessionService } from "@/modules/Session/data/session.service";
 import { useAuthStore } from "@/auth/useAuth";
+import { Navigate } from "react-router-dom";
 
 // --- helpers ---
 function formatRelative(dateISO?: string) {
@@ -78,6 +79,12 @@ export default function DashboardPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const redirectTo =
+    user?.type === "patient"
+      ? "/me"
+      : user?.type === "family"
+        ? "/family/patients"
+        : null;
 
   useEffect(() => {
     let mounted = true;
@@ -220,6 +227,7 @@ export default function DashboardPage() {
       }));
   }, [sessions]);
 
+  if (redirectTo) return <Navigate to={redirectTo} replace />;
   return (
     <div className="space-y-6">
       {/* Header */}

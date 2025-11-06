@@ -23,13 +23,19 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-const navigationItems = [
+const doctorMenu = [
   { name: "Dashboard", href: "/", icon: Home },
   { name: "Doctores", href: "/doctor", icon: UsersRound },
   { name: "Pacientes", href: "/patients", icon: User },
   { name: "Familiares", href: "/family", icon: Users },
   { name: "Datos en tiempo Real", href: "/monitoring", icon: Wifi },
   { name: "Dispositivos", href: "/devices", icon: Microchip },
+];
+
+const patientMenu = [{ name: "Mis datos", href: "/me", icon: User }];
+
+const familyMenu = [
+  { name: "Familiares", href: "/family/patients", icon: UsersRound },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
@@ -43,6 +49,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     onClose();
     navigate("/login");
   };
+
+  if (!(user && user.type)) return;
+  const navigationItems =
+    user?.type === "doctor"
+      ? doctorMenu
+      : user?.type === "patient"
+        ? patientMenu
+        : familyMenu;
 
   return (
     <>

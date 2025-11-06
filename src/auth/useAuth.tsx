@@ -1,4 +1,4 @@
-// src/features/auth/auth.store.ts
+// src/auth/auth.store.ts
 import type { LoginDto, Profile, UserType } from "./auth.interface";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
