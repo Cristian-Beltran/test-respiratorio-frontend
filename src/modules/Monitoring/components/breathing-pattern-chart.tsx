@@ -41,6 +41,13 @@ interface BreathingPatternChartProps {
   showPhaseBands?: boolean;
 }
 
+// Colores directos para el gráfico
+const BREATHING_CHART_COLORS = {
+  pressureStroke: "#2563eb", // azul
+  pressureFill: "rgba(37, 99, 235, 0.25)",
+  baseline: "#6b7280", // gris
+};
+
 /** Heurística simple para derivar fase a partir de los nuevos campos */
 function derivePhase(r: SessionData): BreathingPhase {
   const baseline = r.respBaseline ?? 0;
@@ -269,6 +276,7 @@ export function BreathingPatternChart({
               {showBaseline && typeof avgBaseline === "number" && (
                 <ReferenceLine
                   y={avgBaseline}
+                  stroke={BREATHING_CHART_COLORS.baseline}
                   strokeDasharray="4 4"
                   label={{
                     value: chartConfig.baseline.label,
@@ -284,6 +292,8 @@ export function BreathingPatternChart({
                 type="monotone"
                 dataKey="pressure"
                 name={chartConfig.airflowValue.label}
+                stroke={BREATHING_CHART_COLORS.pressureStroke}
+                fill={BREATHING_CHART_COLORS.pressureFill}
                 fillOpacity={0.28}
                 strokeWidth={2}
                 dot={false}

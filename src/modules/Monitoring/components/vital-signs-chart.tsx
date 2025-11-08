@@ -31,6 +31,13 @@ interface VitalSignsChartProps {
   showRespRate?: boolean;
 }
 
+// Colores directos para las series
+const LINE_COLORS = {
+  bpm: "#2563eb", // azul
+  spo2: "#16a34a", // verde
+  respRate: "#f97316", // naranja
+};
+
 export function VitalSignsChart({
   data,
   title = "Signos Vitales",
@@ -108,6 +115,7 @@ export function VitalSignsChart({
                   type="monotone"
                   dataKey="bpm"
                   name={chartConfig.bpm.label}
+                  stroke={LINE_COLORS.bpm}
                   strokeWidth={2}
                   activeDot={{ r: 5 }}
                   connectNulls
@@ -120,6 +128,7 @@ export function VitalSignsChart({
                   type="monotone"
                   dataKey="spo2"
                   name={chartConfig.spo2.label}
+                  stroke={LINE_COLORS.spo2}
                   strokeWidth={2}
                   activeDot={{ r: 5 }}
                   connectNulls
@@ -132,9 +141,10 @@ export function VitalSignsChart({
                   type="monotone"
                   dataKey="respRate"
                   name={chartConfig.respRate.label}
+                  stroke={LINE_COLORS.respRate}
                   strokeDasharray="5 3"
                   strokeWidth={2}
-                  dot={{ strokeWidth: 2, r: 3 }}
+                  dot={{ strokeWidth: 2, r: 3, stroke: LINE_COLORS.respRate }}
                   activeDot={{ r: 5 }}
                   connectNulls
                 />
