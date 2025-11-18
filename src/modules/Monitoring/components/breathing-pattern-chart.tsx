@@ -48,17 +48,17 @@ const BREATHING_CHART_COLORS = {
   baseline: "#6b7280", // gris
 };
 
-/** Heurística simple para derivar fase a partir de los nuevos campos */
+/** Heurística simple para derivar fase a partir de resp2Adc + resp2Positive */
 function derivePhase(r: SessionData): BreathingPhase {
   const baseline = r.respBaseline ?? 0;
-  const v = (r.airflowValue ?? 0) - baseline;
-  const diff = Math.abs(r.respDiffAbs ?? v);
+  const v = (r.resp2Adc ?? 0) - baseline;
+  const diff = Math.abs(v);
 
-  // Si tenemos canal digital del secundario
+  // 1) Si tenemos canal digital del secundario, usamos eso directo
   if (r.resp2Positive === true) return "exhale";
   if (r.resp2Positive === false) return "inhale";
 
-  // Sin canal digital: usar diffs
+  // 2) Sin canal digital: heurística sobre resp2Adc
   if (diff < 0.05) return "rest"; // zona muerta
   if (diff >= 0.05 && diff < 0.15) return "hold"; // transición/retención
   return v >= 0 ? "inhale" : "exhale";
@@ -66,19 +66,20 @@ function derivePhase(r: SessionData): BreathingPhase {
 
 export function BreathingPatternChart({
   data,
-  title = "Patrón Respiratorio",
-  description = "Análisis del patrón respiratorio basado en presión y fases",
+  title = "Patrón Respiratorio (Canal 2)",
+  description = "Análisis del patrón respiratorio basado en resp2Adc y fases",
   showBaseline = true,
   showPhaseBands = true,
 }: BreathingPatternChartProps) {
   const chartConfig = {
-    airflowValue: { label: "Presión (V)" },
+    resp2Adc: { label: "Canal respiratorio 2" },
     baseline: { label: "Línea Base" },
   };
 
+  // AHORA usamos resp2Adc como señal principal
   const points: Point[] = (data ?? []).map((r) => ({
     timestamp: r.recordedAt,
-    pressure: r.airflowValue ?? 0,
+    pressure: r.resp2Adc ?? 0,
     baseline: r.respBaseline ?? undefined,
     phase: derivePhase(r),
   }));
@@ -154,11 +155,11 @@ export function BreathingPatternChart({
       <div className="rounded-lg border bg-background p-3 shadow-md">
         <p className="text-sm font-medium">{formatTime(labelStr)}</p>
         <p className="text-sm">
-          <span className="font-medium">Presión:</span> {pressure} V
+          <span className="font-medium">Señal canal 2:</span> {pressure}
         </p>
         {typeof d.baseline === "number" && (
           <p className="text-sm">
-            <span className="font-medium">Base:</span> {d.baseline} V
+            <span className="font-medium">Base:</span> {d.baseline}
           </p>
         )}
         <div className="mt-1">
@@ -170,7 +171,7 @@ export function BreathingPatternChart({
     );
   };
 
-  // Estadísticas simples
+  // Estadísticas simples sobre resp2Adc
   const avgPressure =
     points.length > 0
       ? (
@@ -210,7 +211,7 @@ export function BreathingPatternChart({
     });
   }
 
-  // baseline media para ReferenceLine
+  // baseline media para ReferenceLine (seguimos usando respBaseline)
   const avgBaseline = (() => {
     const vals = points
       .map((p) => p.baseline)
@@ -225,16 +226,18 @@ export function BreathingPatternChart({
         <CardTitle className="flex items-center justify-between">
           {title}
           <div className="flex gap-2">
-            <Badge variant="outline">Promedio: {avgPressure}V</Badge>
-            <Badge variant="outline">Máx: {maxPressure}V</Badge>
-            <Badge variant="outline">Mín: {minPressure}V</Badge>
+            <Badge variant="outline">Promedio: {avgPressure}</Badge>
+            <Badge variant="outline">Máx: {maxPressure}</Badge>
+            <Badge variant="outline">Mín: {minPressure}</Badge>
           </div>
         </CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
 
       <CardContent>
-        <ChartContainer config={{ pressure: { label: "Presión (V)" } }}>
+        <ChartContainer
+          config={{ pressure: { label: chartConfig.resp2Adc.label } }}
+        >
           <ResponsiveContainer width="100%" height={320}>
             <AreaChart
               data={points}
@@ -251,7 +254,7 @@ export function BreathingPatternChart({
                 domain={["dataMin - 0.1", "dataMax + 0.1"]}
                 className="text-xs fill-muted-foreground"
                 label={{
-                  value: "Presión (V)",
+                  value: chartConfig.resp2Adc.label,
                   angle: -90,
                   position: "insideLeft",
                 }}
@@ -291,7 +294,7 @@ export function BreathingPatternChart({
               <Area
                 type="monotone"
                 dataKey="pressure"
-                name={chartConfig.airflowValue.label}
+                name={chartConfig.resp2Adc.label}
                 stroke={BREATHING_CHART_COLORS.pressureStroke}
                 fill={BREATHING_CHART_COLORS.pressureFill}
                 fillOpacity={0.28}
