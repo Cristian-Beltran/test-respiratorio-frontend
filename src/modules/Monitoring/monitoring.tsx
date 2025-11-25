@@ -32,7 +32,7 @@ type TelemetryPayload = {
   patientId?: string;
   recordedAt: string; // ISO
 
-  // Respiración primaria
+  // Respiración primaria (mic)
   airflowValue?: number;
   respBaseline?: number;
   respDiffAbs?: number;
@@ -42,7 +42,7 @@ type TelemetryPayload = {
   bpm?: number;
   spo2?: number;
 
-  // Respiración secundaria
+  // Respiración secundaria (presión ya convertida a mbar)
   resp2Adc?: number;
   resp2Positive?: boolean;
 
@@ -84,6 +84,7 @@ export default function MonitoringPage() {
   const [patientId, setPatientId] = useState<string>("");
 
   const ALL = "__ALL__";
+
   // Estado conexión/monitor
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -143,6 +144,7 @@ export default function MonitoringPage() {
       try {
         const data = JSON.parse(payload.toString()) as TelemetryPayload;
 
+        // Filtro por paciente si viene en el payload
         if (patientId && data.patientId && data.patientId !== patientId) return;
 
         const reading: RTReading = {
@@ -161,7 +163,8 @@ export default function MonitoringPage() {
           micAirValue: data.micAirValue,
         };
 
-        setRealtimeData((prev) => [...prev.slice(-299), reading]); // buffer 300
+        // Buffer de 300 puntos
+        setRealtimeData((prev) => [...prev.slice(-299), reading]);
       } catch (e) {
         console.error("MQTT payload inválido:", e);
       }
@@ -208,25 +211,21 @@ export default function MonitoringPage() {
   // Lectura más reciente
   const latestReading = realtimeData[realtimeData.length - 1];
 
-  // ===== Adaptadores -> los charts esperan SessionData[] y hacen su propio mapping =====
+  // Adaptador: RT -> SessionData (lo que esperan los charts)
   const rtAsSessionData: SessionData[] = useMemo(
     () =>
       realtimeData.map<SessionData>((r) => ({
-        id: r.id, // puede ser UUID local
+        id: r.id,
         recordedAt: r.timestamp,
-        // respiración primaria
         airflowValue: r.airflowValue ?? null,
         respBaseline: r.respBaseline ?? null,
         respDiffAbs: r.respDiffAbs ?? null,
         respRate: r.respRate ?? null,
-        // cardio / SpO2
         bpm: r.bpm ?? null,
         spo2: r.spo2 ?? null,
-        // respiración secundaria
-        resp2Adc: r.resp2Adc ?? null,
+        resp2Adc: r.resp2Adc ?? null, // ahora en mbar
         resp2Positive:
           typeof r.resp2Positive === "boolean" ? r.resp2Positive : null,
-        // legado
         micAirValue: r.micAirValue ?? null,
       })),
     [realtimeData],
@@ -267,7 +266,7 @@ export default function MonitoringPage() {
               <SelectContent>
                 <SelectItem value={ALL}>Todos</SelectItem>
                 {patients.map((p) => {
-                  const id = String(p.id); // blindaje por si viene numérico
+                  const id = String(p.id);
                   const name = (p.user?.fullname ?? "").trim() || id;
                   return (
                     <SelectItem key={id} value={id}>
@@ -332,7 +331,7 @@ export default function MonitoringPage() {
               </div>
               <div className="text-center p-4 rounded-lg border">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Flujo Respiratorio
+                  Flujo Respiratorio (Mic)
                 </p>
                 <p className="text-3xl font-bold text-blue-600">
                   {latestReading.airflowValue ?? "—"}
@@ -366,7 +365,7 @@ export default function MonitoringPage() {
           <BreathingPatternChart
             data={rtAsSessionData}
             title="Patrón Respiratorio – Tiempo Real"
-            description="Fase derivada del sensor secundario y mic"
+            description="Mic vs presión (auto-switch por canal disponible)"
             showBaseline
             showPhaseBands
           />
