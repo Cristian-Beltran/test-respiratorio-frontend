@@ -104,19 +104,45 @@ export function BreathingPatternChart({
     baseline: { label: "Línea Base" },
   };
 
-  // === 2) Construir puntos normalizados a "pressure" (independiente del canal real) ===
+  // === 2) Construir puntos usando respiración secundaria (resp2Adc + resp2Positive) ===
   const points: Point[] =
     activeChannel === "none"
       ? []
       : (data ?? []).map((r) => {
-          const value =
-            activeChannel === "pressure"
-              ? (r.resp2Adc ?? 0)
-              : (r.airflowValue ?? 0);
+          if (activeChannel === "pressure") {
+            const baseline = r.respBaseline ?? 0;
+
+            // Diferencia respecto a la baseline, como ya hacías conceptualmente
+            const raw = (r.resp2Adc ?? 0) - baseline;
+            const mag = Math.abs(raw);
+
+            let value: number;
+
+            if (r.resp2Positive === true) {
+              // Expiración → señal positiva
+              value = mag;
+            } else if (r.resp2Positive === false) {
+              // Inspiración → señal negativa
+              value = -mag;
+            } else {
+              // Sin info de dirección → usamos el signo real de la diferencia
+              value = raw;
+            }
+
+            return {
+              timestamp: r.recordedAt,
+              pressure: value,
+              baseline, // seguimos usando respBaseline
+              phase: derivePhase(r, activeChannel),
+            };
+          }
+
+          // Canal mic: se mantiene igual que antes
+          const valueMic = r.airflowValue ?? 0;
 
           return {
             timestamp: r.recordedAt,
-            pressure: value,
+            pressure: valueMic,
             baseline: r.respBaseline ?? undefined,
             phase: derivePhase(r, activeChannel),
           };
