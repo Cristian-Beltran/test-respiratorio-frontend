@@ -96,7 +96,7 @@ export function BreathingPatternChart({
     pressure: {
       label:
         activeChannel === "pressure"
-          ? "Presión respiratoria (mbar)"
+          ? "Presión respiratoria (cmH2O)"
           : activeChannel === "mic"
             ? "Flujo respiratorio (mic)"
             : "Señal respiratoria",

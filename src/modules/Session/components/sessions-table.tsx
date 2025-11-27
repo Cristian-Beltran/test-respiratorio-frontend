@@ -462,7 +462,7 @@ export function SessionsTable() {
                                       value={rec.micAirValue}
                                     />
                                     <ValuePill
-                                      label="R2 ADC"
+                                      label="cmH2O"
                                       value={rec.resp2Adc}
                                     />
                                     <ValueBool
