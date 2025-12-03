@@ -156,7 +156,7 @@ export default function MonitoringPage() {
           respBaseline: data.respBaseline,
           respDiffAbs: data.respDiffAbs,
           respRate: data.respRate,
-          bpm: data.bpm,
+          bpm: typeof data.bpm === "number" ? Math.round(data.bpm) : data.bpm,
           spo2: data.spo2,
           resp2Adc: data.resp2Adc,
           resp2Positive: data.resp2Positive,
