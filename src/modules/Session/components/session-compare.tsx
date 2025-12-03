@@ -40,14 +40,13 @@ type SessionCompareModalProps = {
 
 type MetricStats = { avg: number; min: number; max: number };
 
-// Paleta de colores local para los gráficos
 const CHART_COLORS = {
-  base: "#2563eb", // azul
-  compare: "#f97316", // naranja
-  baseSpo2: "#16a34a", // verde
-  compareSpo2: "#dc2626", // rojo
-  baseResp: "#6b7280", // gris
-  compareResp: "#a855f7", // violeta
+  base: "#2563eb",
+  compare: "#f97316",
+  baseSpo2: "#16a34a",
+  compareSpo2: "#dc2626",
+  baseResp: "#6b7280",
+  compareResp: "#a855f7",
 };
 
 function arrNums(
@@ -75,6 +74,15 @@ function computeStats(
   };
 }
 
+function fmtDate(d: string | Date) {
+  const dt = new Date(d);
+  return dt.toLocaleDateString("es-ES", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
 function fmtDateTime(d: string | Date) {
   const dt = new Date(d);
   return dt.toLocaleString("es-ES", {
@@ -86,15 +94,6 @@ function fmtDateTime(d: string | Date) {
   });
 }
 
-function fmtDate(d: string | Date) {
-  const dt = new Date(d);
-  return dt.toLocaleDateString("es-ES", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
-}
-
 export function SessionCompareModal({
   open,
   onOpenChange,
@@ -102,6 +101,7 @@ export function SessionCompareModal({
   sessions,
 }: SessionCompareModalProps) {
   const [compareId, setCompareId] = useState<string | undefined>(undefined);
+
   const baseRecords = baseSession?.records ?? [];
   const compareSession = sessions.find((s) => s.id === compareId) ?? null;
   const compareRecords = compareSession?.records ?? [];
@@ -133,11 +133,7 @@ export function SessionCompareModal({
     () =>
       compStats && compareSession
         ? [
-            {
-              metric: "BPM",
-              base: baseStats.bpm.avg,
-              comp: compStats.bpm.avg,
-            },
+            { metric: "BPM", base: baseStats.bpm.avg, comp: compStats.bpm.avg },
             {
               metric: "SpO₂",
               base: baseStats.spo2.avg,
@@ -158,46 +154,29 @@ export function SessionCompareModal({
     [baseStats, compStats, compareSession],
   );
 
-  // Serie temporal de varias métricas (por índice, no por timestamp)
   const timeSeriesData = useMemo(() => {
     const maxLen = Math.max(baseRecords.length, compareRecords.length);
     if (!maxLen) return [];
-    const data: {
-      index: number;
-      baseBpm: number | null;
-      compBpm: number | null;
-      baseSpo2: number | null;
-      compSpo2: number | null;
-      baseResp: number | null;
-      compResp: number | null;
-    }[] = [];
+
+    const data = [];
+
     for (let i = 0; i < maxLen; i++) {
       const b = baseRecords[i];
       const c = compareRecords[i];
+
       data.push({
         index: i + 1,
-        baseBpm:
-          typeof b?.bpm === "number" && Number.isFinite(b.bpm) ? b.bpm : null,
-        compBpm:
-          typeof c?.bpm === "number" && Number.isFinite(c.bpm) ? c.bpm : null,
-        baseSpo2:
-          typeof b?.spo2 === "number" && Number.isFinite(b.spo2)
-            ? b.spo2
-            : null,
-        compSpo2:
-          typeof c?.spo2 === "number" && Number.isFinite(c.spo2)
-            ? c.spo2
-            : null,
-        baseResp:
-          typeof b?.respRate === "number" && Number.isFinite(b.respRate)
-            ? b.respRate
-            : null,
-        compResp:
-          typeof c?.respRate === "number" && Number.isFinite(c.respRate)
-            ? c.respRate
-            : null,
+        baseBpm: typeof b?.bpm === "number" ? b.bpm : null,
+        compBpm: typeof c?.bpm === "number" ? c.bpm : null,
+        baseSpo2: typeof b?.spo2 === "number" ? b.spo2 : null,
+        compSpo2: typeof c?.spo2 === "number" ? c.spo2 : null,
+        baseResp: typeof b?.respRate === "number" ? b.respRate : null,
+        compResp: typeof c?.respRate === "number" ? c.respRate : null,
+        baseAir: typeof b?.airflowValue === "number" ? b.airflowValue : null,
+        compAir: typeof c?.airflowValue === "number" ? c.airflowValue : null,
       });
     }
+
     return data;
   }, [baseRecords, compareRecords]);
 
@@ -220,9 +199,8 @@ export function SessionCompareModal({
     }
   }, [baseSession, sessions, compareId]);
 
-  if (!baseSession) {
-    return null;
-  }
+  if (!baseSession) return null;
+
   const candidates = sessions.filter((s) => s.id !== baseSession.id);
 
   const baseLabel = `${fmtDate(baseSession.startedAt)} • ${
@@ -253,8 +231,8 @@ export function SessionCompareModal({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Encabezado: selección de sesión a comparar */}
-          <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)]">
+          {/* SELECTORES */}
+          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Sesión base</CardTitle>
@@ -266,13 +244,6 @@ export function SessionCompareModal({
                   <Badge variant="outline">
                     {baseSession.records?.length ?? 0} lecturas
                   </Badge>
-                  {baseSession.device?.model && (
-                    <Badge variant="outline">
-                      {baseSession.device.model}{" "}
-                      {baseSession.device.serialNumber &&
-                        `(${baseSession.device.serialNumber})`}
-                    </Badge>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -284,11 +255,11 @@ export function SessionCompareModal({
               <CardContent className="space-y-3">
                 <Select
                   value={compareId}
-                  onValueChange={(val) => setCompareId(val)}
+                  onValueChange={setCompareId}
                   disabled={!candidates.length}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona otra sesión" />
+                    <SelectValue placeholder="Selecciona sesión" />
                   </SelectTrigger>
                   <SelectContent>
                     {candidates.map((s) => (
@@ -311,21 +282,8 @@ export function SessionCompareModal({
                       <Badge variant="outline">
                         {compareSession.records?.length ?? 0} lecturas
                       </Badge>
-                      {compareSession.device?.model && (
-                        <Badge variant="outline">
-                          {compareSession.device.model}{" "}
-                          {compareSession.device.serialNumber &&
-                            `(${compareSession.device.serialNumber})`}
-                        </Badge>
-                      )}
                     </div>
                   </div>
-                )}
-
-                {!candidates.length && (
-                  <p className="text-xs text-muted-foreground">
-                    No hay otras sesiones para comparar.
-                  </p>
                 )}
               </CardContent>
             </Card>
@@ -333,11 +291,11 @@ export function SessionCompareModal({
 
           {!compareSession || !compStats ? (
             <p className="text-sm text-muted-foreground">
-              Selecciona una sesión para ver la comparación.
+              Selecciona una sesión para visualizar la comparación.
             </p>
           ) : (
             <>
-              {/* KPIs comparativos: promedio, min, max */}
+              {/* KPI BOXES */}
               <div className="grid gap-4 md:grid-cols-4">
                 <CompareMetricBox
                   title="Pulso (BPM)"
@@ -361,117 +319,76 @@ export function SessionCompareModal({
                 />
               </div>
 
-              {/* Gráficos */}
-              <div className="grid gap-4 md:grid-cols-2">
-                {/* Radar de promedios */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">
-                      Comparación de promedios (Radar)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="h-[320px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={radarData}>
-                        <PolarGrid />
-                        <PolarAngleAxis dataKey="metric" />
-                        <PolarRadiusAxis />
-                        <Radar
-                          name="Base"
-                          dataKey="base"
-                          stroke={CHART_COLORS.base}
-                          fill={CHART_COLORS.base}
-                          fillOpacity={0.25}
-                        />
-                        <Radar
-                          name="Comparación"
-                          dataKey="comp"
-                          stroke={CHART_COLORS.compare}
-                          fill={CHART_COLORS.compare}
-                          fillOpacity={0.25}
-                        />
-                        <Legend />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+              {/* RADAR */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Radar de promedios</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={radarData}>
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="metric" />
+                      <PolarRadiusAxis />
+                      <Radar
+                        name="Base"
+                        dataKey="base"
+                        stroke={CHART_COLORS.base}
+                        fill={CHART_COLORS.base}
+                        fillOpacity={0.25}
+                      />
+                      <Radar
+                        name="Comparación"
+                        dataKey="comp"
+                        stroke={CHART_COLORS.compare}
+                        fill={CHART_COLORS.compare}
+                        fillOpacity={0.25}
+                      />
+                      <Legend />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
 
-                {/* Serie temporal BPM / SpO2 / Resp */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">
-                      Evolución de BPM, SpO₂ y Resp/min
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="h-[320px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={timeSeriesData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="index"
-                          tick={{ fontSize: 10 }}
-                          label={{
-                            value: "Muestra",
-                            position: "insideBottomRight",
-                            offset: -4,
-                          }}
-                        />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="baseBpm"
-                          name="BPM Base"
-                          stroke={CHART_COLORS.base}
-                          dot={false}
-                          strokeWidth={2}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="compBpm"
-                          name="BPM Comp."
-                          stroke={CHART_COLORS.compare}
-                          dot={false}
-                          strokeWidth={2}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="baseSpo2"
-                          name="SpO₂ Base"
-                          stroke={CHART_COLORS.baseSpo2}
-                          dot={false}
-                          strokeWidth={1.5}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="compSpo2"
-                          name="SpO₂ Comp."
-                          stroke={CHART_COLORS.compareSpo2}
-                          dot={false}
-                          strokeWidth={1.5}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="baseResp"
-                          name="Resp/min Base"
-                          stroke={CHART_COLORS.baseResp}
-                          dot={false}
-                          strokeWidth={1.5}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="compResp"
-                          name="Resp/min Comp."
-                          stroke={CHART_COLORS.compareResp}
-                          dot={false}
-                          strokeWidth={1.5}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </div>
+              {/* BPM */}
+              <SignalChart
+                title="Evolución Pulso (BPM)"
+                data={timeSeriesData}
+                baseKey="baseBpm"
+                compKey="compBpm"
+                baseColor={CHART_COLORS.base}
+                compColor={CHART_COLORS.compare}
+              />
+
+              {/* SpO₂ */}
+              <SignalChart
+                title="Evolución SpO₂ (%)"
+                data={timeSeriesData}
+                baseKey="baseSpo2"
+                compKey="compSpo2"
+                baseColor={CHART_COLORS.baseSpo2}
+                compColor={CHART_COLORS.compareSpo2}
+              />
+
+              {/* Resp/min */}
+              <SignalChart
+                title="Evolución Resp/min"
+                data={timeSeriesData}
+                baseKey="baseResp"
+                compKey="compResp"
+                baseColor={CHART_COLORS.baseResp}
+                compColor={CHART_COLORS.compareResp}
+              />
+
+              {/* Flujo Aire */}
+              <SignalChart
+                title="Evolución Flujo de Aire"
+                data={timeSeriesData}
+                baseKey="baseAir"
+                compKey="compAir"
+                baseColor={CHART_COLORS.base}
+                compColor={CHART_COLORS.compare}
+              />
             </>
           )}
         </div>
@@ -523,6 +440,55 @@ function CompareMetricBox({
             {sign(diffMax)})
           </span>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SignalChart({
+  title,
+  data,
+  baseKey,
+  compKey,
+  baseColor,
+  compColor,
+}: {
+  title: string;
+  data: any[];
+  baseKey: string;
+  compKey: string;
+  baseColor: string;
+  compColor: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="index" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} />
+            <Tooltip />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey={baseKey}
+              name="Base"
+              stroke={baseColor}
+              dot={false}
+            />
+            <Line
+              type="monotone"
+              dataKey={compKey}
+              name="Comparación"
+              stroke={compColor}
+              dot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );
