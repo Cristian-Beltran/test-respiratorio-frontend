@@ -32,7 +32,10 @@ const doctorMenu = [
   { name: "Dispositivos", href: "/devices", icon: Microchip },
 ];
 
-const patientMenu = [{ name: "Mis datos", href: "/me", icon: User }];
+const patientMenu = [
+  { name: "Mis datos", href: "/me", icon: User },
+  { name: "Datos en tiempo Real", href: "/monitoring", icon: Wifi },
+];
 
 const familyMenu = [
   { name: "Familiares", href: "/family/patients", icon: UsersRound },
