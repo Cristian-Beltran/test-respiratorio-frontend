@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Square, Wifi, WifiOff, UserRound } from "lucide-react";
+import { Play, Square, Wifi, WifiOff, UserRound, Pause } from "lucide-react";
 import { useAuthStore } from "@/auth/useAuth";
 import type { Patient } from "@/modules/Patient/patient.interface";
 import { patientService } from "@/modules/Patient/data/patient.service";
@@ -31,49 +31,65 @@ type TelemetryPayload = {
   serialNumber: string;
   patientId?: string;
   recordedAt: string; // ISO
-
-  // Respiración primaria (mic)
   airflowValue?: number;
   respBaseline?: number;
   respDiffAbs?: number;
   respRate?: number;
-
-  // Cardíaco / SpO2
   bpm?: number;
   spo2?: number;
-
-  // Respiración secundaria (presión ya convertida a mbar)
   resp2Adc?: number;
   resp2Positive?: boolean;
-
-  // Legado
   micAirValue?: number;
 };
 
-// === Estructura interna en frontend para RT ===
 type RTReading = {
   id: string;
   serialNumber: string;
   timestamp: string; // ISO
   patientId?: string;
-
-  // Respiración primaria
   airflowValue?: number;
   respBaseline?: number;
   respDiffAbs?: number;
   respRate?: number;
-
-  // Cardíaco / SpO2
   bpm?: number;
   spo2?: number;
-
-  // Respiración secundaria
   resp2Adc?: number;
   resp2Positive?: boolean;
-
-  // Legado
   micAirValue?: number;
 };
+
+// ==============================
+// Sticky 1: Countdown 4 minutos
+// ==============================
+const COUNTDOWN_SECONDS = 4 * 60;
+
+function formatMMSS(totalSeconds: number) {
+  const s = Math.max(0, totalSeconds);
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+
+// ==============================
+// Sticky 2: Respiración 2-2-6
+// ==============================
+type BreathPhase = "INHALE" | "HOLD" | "EXHALE";
+const PHASES: { phase: BreathPhase; seconds: number; label: string }[] = [
+  { phase: "INHALE", seconds: 2, label: "Inhala" },
+  { phase: "HOLD", seconds: 2, label: "Aguanta" },
+  { phase: "EXHALE", seconds: 6, label: "Sopla" },
+];
+
+function phaseColorClasses(phase: BreathPhase) {
+  switch (phase) {
+    case "INHALE":
+      return "bg-blue-50 text-blue-800 border-blue-200";
+    case "HOLD":
+      return "bg-amber-50 text-amber-800 border-amber-200";
+    case "EXHALE":
+      return "bg-emerald-50 text-emerald-800 border-emerald-200";
+  }
+}
 
 export default function MonitoringPage() {
   const { user } = useAuthStore();
@@ -94,6 +110,55 @@ export default function MonitoringPage() {
 
   // MQTT client ref
   const clientRef = useRef<MqttClient | null>(null);
+
+  // ==============================
+  // Sticky 1: Countdown state
+  // ==============================
+  const [countdownActive, setCountdownActive] = useState(false);
+  const [countdownLeft, setCountdownLeft] = useState(COUNTDOWN_SECONDS);
+  const [countdownDone, setCountdownDone] = useState(false);
+
+  // ==============================
+  // Sticky 2: Breathing state
+  // ==============================
+  const [breathRunning, setBreathRunning] = useState(false);
+  const [phaseIndex, setPhaseIndex] = useState(0);
+  const [phaseLeft, setPhaseLeft] = useState(PHASES[0].seconds);
+
+  // WebAudio beep
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const beep = (freq = 880, durationMs = 90, gainValue = 0.06) => {
+    try {
+      const AudioCtx =
+        window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
+      const ctx = audioCtxRef.current;
+
+      // iOS/Safari: asegurar estado running tras interacción
+      if (ctx.state === "suspended") ctx.resume();
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.value = gainValue;
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      setTimeout(() => {
+        osc.stop();
+        osc.disconnect();
+        gain.disconnect();
+      }, durationMs);
+    } catch {
+      // no-op: si el navegador bloquea audio, no rompemos UX
+    }
+  };
 
   // Cargar pacientes
   useEffect(() => {
@@ -190,14 +255,81 @@ export default function MonitoringPage() {
     };
   }, [isMonitoring, patientId]);
 
+  // ==============================
+  // Countdown effect (Sticky 1)
+  // ==============================
+  useEffect(() => {
+    if (!countdownActive) return;
+
+    if (countdownLeft <= 0) {
+      setCountdownActive(false);
+      setCountdownDone(true);
+      return;
+    }
+
+    const t = window.setInterval(() => {
+      setCountdownLeft((prev) => prev - 1);
+    }, 1000);
+
+    return () => window.clearInterval(t);
+  }, [countdownActive, countdownLeft]);
+
+  // ==============================
+  // Breathing loop effect (Sticky 2)
+  // ==============================
+  useEffect(() => {
+    if (!breathRunning) return;
+
+    const tick = window.setInterval(() => {
+      setPhaseLeft((prev) => {
+        if (prev > 1) return prev - 1;
+
+        // Cambia de fase
+        const nextIndex = (phaseIndex + 1) % PHASES.length;
+        setPhaseIndex(nextIndex);
+        const nextSeconds = PHASES[nextIndex].seconds;
+        // beep en cada cambio de fase (incluye el inicio de nueva acción)
+        beep(nextIndex === 2 ? 660 : 880, 90, 0.06);
+        return nextSeconds;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(tick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breathRunning, phaseIndex]);
+
   const startMonitoring = () => {
     setRealtimeData([]);
     setIsMonitoring(true);
+
+    // Arranca el countdown al iniciar monitoreo (4 min)
+    setCountdownDone(false);
+    setCountdownLeft(COUNTDOWN_SECONDS);
+    setCountdownActive(true);
   };
 
   const stopMonitoring = () => {
     setIsMonitoring(false);
     setRealtimeData([]);
+
+    // Detiene y resetea countdown
+    setCountdownActive(false);
+    setCountdownLeft(COUNTDOWN_SECONDS);
+    setCountdownDone(false);
+  };
+
+  const toggleBreathing = () => {
+    setBreathRunning((prev) => {
+      const next = !prev;
+
+      if (next) {
+        // reset limpio al iniciar
+        setPhaseIndex(0);
+        setPhaseLeft(PHASES[0].seconds);
+        beep(880, 90, 0.06);
+      }
+      return next;
+    });
   };
 
   // Nombre de paciente
@@ -223,7 +355,7 @@ export default function MonitoringPage() {
         respRate: r.respRate ?? null,
         bpm: r.bpm ?? null,
         spo2: r.spo2 ?? null,
-        resp2Adc: r.resp2Adc ?? null, // ahora en mbar
+        resp2Adc: r.resp2Adc ?? null,
         resp2Positive:
           typeof r.resp2Positive === "boolean" ? r.resp2Positive : null,
         micAirValue: r.micAirValue ?? null,
@@ -231,8 +363,158 @@ export default function MonitoringPage() {
     [realtimeData],
   );
 
+  const currentPhase = PHASES[phaseIndex];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* =========================
+          Sticky HUD (siempre visible)
+         ========================= */}
+      <div className="sticky top-2 z-50">
+        <div className="flex items-start justify-between gap-3">
+          {/* Sticky 1: Countdown */}
+          <Card className="w-full max-w-[360px] shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                Cronómetro de Muestras
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Cuenta regresiva de 4 minutos
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold tabular-nums">
+                    {formatMMSS(countdownLeft)}
+                  </span>
+                  {countdownDone ? (
+                    <Badge className="bg-emerald-100 text-emerald-800">
+                      Completado
+                    </Badge>
+                  ) : countdownActive ? (
+                    <Badge className="bg-blue-100 text-blue-800">
+                      En curso
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Listo</Badge>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={countdownActive ? "secondary" : "default"}
+                    onClick={() => {
+                      if (countdownDone) {
+                        setCountdownDone(false);
+                        setCountdownLeft(COUNTDOWN_SECONDS);
+                      }
+                      setCountdownActive((prev) => !prev);
+                    }}
+                    disabled={!isMonitoring}
+                    title={!isMonitoring ? "Inicia el monitoreo primero" : ""}
+                  >
+                    {countdownActive ? (
+                      <>
+                        <Pause className="mr-2 h-4 w-4" />
+                        Pausa
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        {countdownLeft === COUNTDOWN_SECONDS && !countdownDone
+                          ? "Iniciar"
+                          : "Reanudar"}
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setCountdownActive(false);
+                      setCountdownDone(false);
+                      setCountdownLeft(COUNTDOWN_SECONDS);
+                    }}
+                    disabled={!isMonitoring}
+                  >
+                    Reset
+                  </Button>
+                </div>
+              </div>
+
+              {countdownDone && (
+                <div className="mt-3 rounded-md border bg-emerald-50 p-3 text-sm text-emerald-900">
+                  ✅ Ya se tomaron las muestras necesarias.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Sticky 2: Breathing loop */}
+          <Card className="w-full max-w-[360px] shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                Guía de Respiración (2-2-6)
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Inhala 2s · Aguanta 2s · Sopla 6s (bucle)
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-2">
+                  <div
+                    className={[
+                      "inline-flex items-center gap-2 rounded-md border px-3 py-1.5",
+                      phaseColorClasses(currentPhase.phase),
+                    ].join(" ")}
+                  >
+                    <span className="text-sm font-semibold">
+                      {currentPhase.label}
+                    </span>
+                    <span className="text-lg font-bold tabular-nums">
+                      {phaseLeft}s
+                    </span>
+                  </div>
+
+                  {/* “animación” simple: barra de progreso */}
+                  <div className="h-2 w-[220px] rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-foreground/70 transition-all duration-300"
+                      style={{
+                        width: `${(phaseLeft / currentPhase.seconds) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <Button size="sm" onClick={toggleBreathing}>
+                  {breathRunning ? (
+                    <>
+                      <Pause className="mr-2 h-4 w-4" />
+                      Pausa
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Iniciar
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="mt-2 text-xs text-muted-foreground">
+                Beep en cada cambio de fase.
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
