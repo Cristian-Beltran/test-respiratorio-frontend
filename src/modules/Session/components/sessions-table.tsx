@@ -7,6 +7,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+
+import { FileText } from "lucide-react";
+import { SessionReportModal } from "./session-report-modal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -201,6 +204,9 @@ export function SessionsTable() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareBase, setCompareBase] = useState<Session | null>(null);
 
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportSession, setReportSession] = useState<Session | null>(null);
+
   const sorted = useMemo(() => {
     const s = [...sessions];
     s.sort(
@@ -368,6 +374,17 @@ export function SessionsTable() {
                             <BarChart2 className="h-3.5 w-3.5" />
                             Comparar
                           </Button>
+                          <Button
+                            variant="outline"
+                            className="gap-1"
+                            onClick={() => {
+                              setReportSession(s);
+                              setReportOpen(true);
+                            }}
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            PDF
+                          </Button>
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -483,6 +500,15 @@ export function SessionsTable() {
             })}
           </div>
         </div>
+
+        <SessionReportModal
+          open={reportOpen}
+          onOpenChange={(open) => {
+            setReportOpen(open);
+            if (!open) setReportSession(null);
+          }}
+          session={reportSession}
+        />
       </div>
     </>
   );
