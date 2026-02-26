@@ -71,13 +71,50 @@ function formatMMSS(totalSeconds: number) {
 }
 
 // ==============================
-// Sticky 2: Respiración 2-2-6
+// Sticky 2: Respiración (select)
 // ==============================
 type BreathPhase = "INHALE" | "HOLD" | "EXHALE";
-const PHASES: { phase: BreathPhase; seconds: number; label: string }[] = [
-  { phase: "INHALE", seconds: 2, label: "Inhala" },
-  { phase: "HOLD", seconds: 2, label: "Aguanta" },
-  { phase: "EXHALE", seconds: 6, label: "Sopla" },
+
+type BreathStep = { phase: BreathPhase; seconds: number; label: string };
+type BreathExercise = {
+  id: string;
+  name: string;
+  subtitle: string;
+  steps: BreathStep[];
+};
+
+const BREATH_EXERCISES: BreathExercise[] = [
+  {
+    id: "2-2-6",
+    name: "2–2–6 (Calma rápida)",
+    subtitle: "Inhala 2s · Aguanta 2s · Sopla 6s (bucle)",
+    steps: [
+      { phase: "INHALE", seconds: 2, label: "Inhala" },
+      { phase: "HOLD", seconds: 2, label: "Aguanta" },
+      { phase: "EXHALE", seconds: 6, label: "Sopla" },
+    ],
+  },
+  {
+    id: "4-4-4-4",
+    name: "Box 4–4–4–4",
+    subtitle: "Inhala 4s · Aguanta 4s · Sopla 4s · Aguanta 4s (bucle)",
+    steps: [
+      { phase: "INHALE", seconds: 4, label: "Inhala" },
+      { phase: "HOLD", seconds: 4, label: "Aguanta" },
+      { phase: "EXHALE", seconds: 4, label: "Sopla" },
+      { phase: "HOLD", seconds: 4, label: "Aguanta" },
+    ],
+  },
+  {
+    id: "4-7-8",
+    name: "4–7–8 (Relajación)",
+    subtitle: "Inhala 4s · Aguanta 7s · Sopla 8s (bucle)",
+    steps: [
+      { phase: "INHALE", seconds: 4, label: "Inhala" },
+      { phase: "HOLD", seconds: 7, label: "Aguanta" },
+      { phase: "EXHALE", seconds: 8, label: "Sopla" },
+    ],
+  },
 ];
 
 function phaseColorClasses(phase: BreathPhase) {
@@ -121,6 +158,17 @@ export default function MonitoringPage() {
   // ==============================
   // Sticky 2: Breathing state
   // ==============================
+  const [breathExerciseId, setBreathExerciseId] = useState<string>(
+    BREATH_EXERCISES[0].id,
+  );
+  const breathExercise = useMemo(
+    () =>
+      BREATH_EXERCISES.find((x) => x.id === breathExerciseId) ??
+      BREATH_EXERCISES[0],
+    [breathExerciseId],
+  );
+  const PHASES = breathExercise.steps;
+
   const [breathRunning, setBreathRunning] = useState(false);
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [phaseLeft, setPhaseLeft] = useState(PHASES[0].seconds);
@@ -159,6 +207,14 @@ export default function MonitoringPage() {
       // no-op: si el navegador bloquea audio, no rompemos UX
     }
   };
+
+  // Al cambiar ejercicio: reset limpio (y si estaba corriendo, sigue corriendo)
+  useEffect(() => {
+    setPhaseIndex(0);
+    setPhaseLeft(PHASES[0].seconds);
+    if (breathRunning) beep(880, 90, 0.06);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breathExerciseId]);
 
   // Cargar pacientes
   useEffect(() => {
@@ -288,15 +344,18 @@ export default function MonitoringPage() {
         const nextIndex = (phaseIndex + 1) % PHASES.length;
         setPhaseIndex(nextIndex);
         const nextSeconds = PHASES[nextIndex].seconds;
-        // beep en cada cambio de fase (incluye el inicio de nueva acción)
-        beep(nextIndex === 2 ? 660 : 880, 90, 0.06);
+
+        // beep en cada cambio de fase
+        // EXHALE un poco más grave; resto agudo
+        beep(PHASES[nextIndex].phase === "EXHALE" ? 660 : 880, 90, 0.06);
+
         return nextSeconds;
       });
     }, 1000);
 
     return () => window.clearInterval(tick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [breathRunning, phaseIndex]);
+  }, [breathRunning, phaseIndex, breathExerciseId]);
 
   const startMonitoring = () => {
     setRealtimeData([]);
@@ -456,15 +515,32 @@ export default function MonitoringPage() {
           {/* Sticky 2: Breathing loop */}
           <Card className="w-full max-w-[360px] shadow-md">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                Guía de Respiración (2-2-6)
-              </CardTitle>
+              <CardTitle className="text-base">Guía de Respiración</CardTitle>
               <CardDescription className="text-xs">
-                Inhala 2s · Aguanta 2s · Sopla 6s (bucle)
+                {breathExercise.subtitle}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="pt-0">
+              {/* ✅ NUEVO: selector de ejercicio */}
+              <div className="mb-3">
+                <Select
+                  value={breathExerciseId}
+                  onValueChange={(v) => setBreathExerciseId(v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecciona un ejercicio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BREATH_EXERCISES.map((ex) => (
+                      <SelectItem key={ex.id} value={ex.id}>
+                        {ex.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="flex items-center justify-between gap-3">
                 <div className="space-y-2">
                   <div
