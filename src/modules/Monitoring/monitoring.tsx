@@ -106,12 +106,12 @@ const BREATH_EXERCISES: BreathExercise[] = [
     ],
   },
   {
-    id: "4-7-8",
-    name: "4–7–8 (Relajación)",
-    subtitle: "Inhala 4s · Aguanta 7s · Sopla 8s (bucle)",
+    id: "4-0-8",
+    name: "4–0–8 (Relajación)",
+    subtitle: "Inhala 4s · Aguanta 0s · Sopla 8s (bucle)",
     steps: [
       { phase: "INHALE", seconds: 4, label: "Inhala" },
-      { phase: "HOLD", seconds: 7, label: "Aguanta" },
+      { phase: "HOLD", seconds: 0, label: "Aguanta" },
       { phase: "EXHALE", seconds: 8, label: "Sopla" },
     ],
   },
