@@ -28,7 +28,7 @@ export function SessionReportModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-[90vw] sm:max-w-[1240px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-[96vw] sm:max-w-[1400px] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="flex flex-row items-center justify-between gap-2">
           <DialogTitle>Reporte en PDF</DialogTitle>
 

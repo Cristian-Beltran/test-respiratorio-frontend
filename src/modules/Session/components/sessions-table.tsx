@@ -463,28 +463,8 @@ export function SessionsTable() {
                                       value={rec.respRate}
                                     />
                                     <ValuePill
-                                      label="Air"
-                                      value={rec.airflowValue}
-                                    />
-                                    <ValuePill
-                                      label="Base"
-                                      value={rec.respBaseline}
-                                    />
-                                    <ValuePill
-                                      label="|Δ|"
-                                      value={rec.respDiffAbs}
-                                    />
-                                    <ValuePill
-                                      label="Mic"
-                                      value={rec.micAirValue}
-                                    />
-                                    <ValuePill
                                       label="cmH2O"
                                       value={rec.resp2Adc}
-                                    />
-                                    <ValueBool
-                                      label="R2 Dir"
-                                      value={rec.resp2Positive}
                                     />
                                   </div>
                                 </div>
@@ -560,24 +540,6 @@ function ValuePill({ label, value }: { label: string; value?: number | null }) {
       <span className="font-mono text-[12px]">
         {v === null ? "—" : v.toFixed(2)}
       </span>
-    </div>
-  );
-}
-
-function ValueBool({
-  label,
-  value,
-}: {
-  label: string;
-  value?: boolean | null;
-}) {
-  let text = "—";
-  if (value === true) text = "Positiva";
-  if (value === false) text = "Negativa";
-  return (
-    <div className="flex items-center justify-between rounded-md border px-2 py-1">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <span className="font-mono text-[12px]">{text}</span>
     </div>
   );
 }

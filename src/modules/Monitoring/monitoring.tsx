@@ -154,6 +154,7 @@ export default function MonitoringPage() {
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownLeft, setCountdownLeft] = useState(COUNTDOWN_SECONDS);
   const [countdownDone, setCountdownDone] = useState(false);
+  const shouldCollectRef = useRef(false);
 
   // ==============================
   // Sticky 2: Breathing state
@@ -236,6 +237,11 @@ export default function MonitoringPage() {
 
   // Conectar/Desconectar MQTT según estado de monitoreo
   useEffect(() => {
+    shouldCollectRef.current =
+      countdownActive && !countdownDone && countdownLeft > 0;
+  }, [countdownActive, countdownDone, countdownLeft]);
+
+  useEffect(() => {
     if (!isMonitoring) {
       try {
         clientRef.current?.unsubscribe("devices/+/telemetry");
@@ -263,6 +269,8 @@ export default function MonitoringPage() {
 
     const onMessage = (_topic: string, payload: Buffer) => {
       try {
+        if (!shouldCollectRef.current) return;
+
         const data = JSON.parse(payload.toString()) as TelemetryPayload;
 
         // Filtro por paciente si viene en el payload
@@ -429,15 +437,13 @@ export default function MonitoringPage() {
       {/* =========================
           Sticky HUD (siempre visible)
          ========================= */}
-      <div className="sticky top-2 z-50">
+      <div>
         <div className="flex items-start justify-between gap-3">
           {/* Sticky 1: Countdown */}
           <Card className="w-full max-w-[360px] shadow-md">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                Cronómetro de Muestras
-              </CardTitle>
-              <CardDescription className="text-xs">
+              <CardTitle className="text-lg">Cronómetro de Muestras</CardTitle>
+              <CardDescription className="text-sm">
                 Cuenta regresiva de 4 minutos
               </CardDescription>
             </CardHeader>
@@ -465,10 +471,16 @@ export default function MonitoringPage() {
                     size="sm"
                     variant={countdownActive ? "secondary" : "default"}
                     onClick={() => {
+                      const shouldStartFresh =
+                        !countdownActive &&
+                        countdownLeft === COUNTDOWN_SECONDS &&
+                        !countdownDone;
+
                       if (countdownDone) {
                         setCountdownDone(false);
                         setCountdownLeft(COUNTDOWN_SECONDS);
                       }
+                      if (shouldStartFresh) setRealtimeData([]);
                       setCountdownActive((prev) => !prev);
                     }}
                     disabled={!isMonitoring}
@@ -496,6 +508,7 @@ export default function MonitoringPage() {
                       setCountdownActive(false);
                       setCountdownDone(false);
                       setCountdownLeft(COUNTDOWN_SECONDS);
+                      setRealtimeData([]);
                     }}
                     disabled={!isMonitoring}
                   >
@@ -515,8 +528,8 @@ export default function MonitoringPage() {
           {/* Sticky 2: Breathing loop */}
           <Card className="w-full max-w-[360px] shadow-md">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Guía de Respiración</CardTitle>
-              <CardDescription className="text-xs">
+              <CardTitle className="text-lg">Guía de Respiración</CardTitle>
+              <CardDescription className="text-sm">
                 {breathExercise.subtitle}
               </CardDescription>
             </CardHeader>
@@ -549,7 +562,7 @@ export default function MonitoringPage() {
                       phaseColorClasses(currentPhase.phase),
                     ].join(" ")}
                   >
-                    <span className="text-sm font-semibold">
+                    <span className="text-base font-semibold">
                       {currentPhase.label}
                     </span>
                     <span className="text-lg font-bold tabular-nums">
@@ -583,7 +596,7 @@ export default function MonitoringPage() {
                 </Button>
               </div>
 
-              <div className="mt-2 text-xs text-muted-foreground">
+              <div className="mt-2 text-sm text-muted-foreground">
                 Beep en cada cambio de fase.
               </div>
             </CardContent>
@@ -594,7 +607,7 @@ export default function MonitoringPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
             Monitoreo en Tiempo Real
           </h2>
           <p className="text-muted-foreground">
@@ -680,26 +693,26 @@ export default function MonitoringPage() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="text-center p-4 rounded-lg border">
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-base font-medium text-muted-foreground">
                   Frecuencia Cardíaca
                 </p>
-                <p className="text-3xl font-bold text-red-600">
+                <p className="text-4xl font-bold text-red-600">
                   {latestReading.bpm ?? "—"} {latestReading.bpm ? "bpm" : ""}
                 </p>
               </div>
               <div className="text-center p-4 rounded-lg border">
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-base font-medium text-muted-foreground">
                   Flujo Respiratorio (Mic)
                 </p>
-                <p className="text-3xl font-bold text-blue-600">
+                <p className="text-4xl font-bold text-blue-600">
                   {latestReading.airflowValue ?? "—"}
                 </p>
               </div>
               <div className="text-center p-4 rounded-lg border">
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-base font-medium text-muted-foreground">
                   SpO₂
                 </p>
-                <p className="text-3xl font-bold text-green-600">
+                <p className="text-4xl font-bold text-green-600">
                   {latestReading.spo2 ?? "—"}
                   {latestReading.spo2 ? "%" : ""}
                 </p>

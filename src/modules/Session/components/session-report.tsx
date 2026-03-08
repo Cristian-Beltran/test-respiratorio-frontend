@@ -15,6 +15,13 @@ import {
 import type { Session, SessionData } from "@/modules/Session/session.interface";
 
 type MetricStats = { avg: number; min: number; max: number };
+type ChartPoint = {
+  index: number;
+  time: string;
+  bpm: number | null;
+  spo2: number | null;
+  respRate: number | null;
+};
 
 function arrNums(
   records: SessionData[],
@@ -73,8 +80,8 @@ function SignalChart({
   dataKey,
 }: {
   title: string;
-  data: any[];
-  dataKey: string;
+  data: ChartPoint[];
+  dataKey: "bpm" | "spo2" | "respRate";
 }) {
   return (
     <Card>
@@ -82,7 +89,7 @@ function SignalChart({
         <CardTitle className="text-sm">{title}</CardTitle>
       </CardHeader>
       {/* Para PDF: altura fija */}
-      <CardContent className="h-[260px]">
+      <CardContent className="h-[320px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -99,9 +106,10 @@ function SignalChart({
 }
 
 export function SessionReport({ session }: { session: Session }) {
-  const records = session.records ?? [];
+  const records = React.useMemo(() => session.records ?? [], [session.records]);
 
   const patientName = session.patient?.user?.fullname ?? "Paciente";
+  const patientEmail = session.patient?.user?.email ?? "—";
   const deviceLabel = [
     session.device?.model ?? "",
     session.device?.serialNumber ? `(${session.device.serialNumber})` : "",
@@ -118,7 +126,6 @@ export function SessionReport({ session }: { session: Session }) {
       bpm: computeStats(records, (r) => r.bpm ?? null),
       spo2: computeStats(records, (r) => r.spo2 ?? null),
       resp: computeStats(records, (r) => r.respRate ?? null),
-      air: computeStats(records, (r) => r.airflowValue ?? null),
     }),
     [records],
   );
@@ -130,7 +137,6 @@ export function SessionReport({ session }: { session: Session }) {
       bpm: typeof r.bpm === "number" ? r.bpm : null,
       spo2: typeof r.spo2 === "number" ? r.spo2 : null,
       respRate: typeof r.respRate === "number" ? r.respRate : null,
-      airflowValue: typeof r.airflowValue === "number" ? r.airflowValue : null,
     }));
   }, [records]);
 
@@ -153,25 +159,26 @@ export function SessionReport({ session }: { session: Session }) {
             </div>
           </div>
           <div className="text-sm font-medium">{patientName}</div>
+          <div className="text-xs text-muted-foreground">
+            Correo: {patientEmail}
+          </div>
         </CardHeader>
       </Card>
 
       {/* KPIs */}
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-3">
         <Kpi title="Pulso (BPM)" s={stats.bpm} />
         <Kpi title="SpO₂ (%)" s={stats.spo2} />
         <Kpi title="Resp/min" s={stats.resp} />
-        <Kpi title="Flujo Aire" s={stats.air} />
       </div>
 
       <Separator />
 
       {/* Charts */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-1">
         <SignalChart title="Pulso (BPM)" data={series} dataKey="bpm" />
         <SignalChart title="SpO₂ (%)" data={series} dataKey="spo2" />
         <SignalChart title="Resp/min" data={series} dataKey="respRate" />
-        <SignalChart title="Flujo Aire" data={series} dataKey="airflowValue" />
       </div>
 
       <Separator />
@@ -191,12 +198,7 @@ export function SessionReport({ session }: { session: Session }) {
                   <th className="p-2 text-right">BPM</th>
                   <th className="p-2 text-right">SpO₂</th>
                   <th className="p-2 text-right">Resp/min</th>
-                  <th className="p-2 text-right">Air</th>
-                  <th className="p-2 text-right">Base</th>
-                  <th className="p-2 text-right">|Δ|</th>
-                  <th className="p-2 text-right">Mic</th>
                   <th className="p-2 text-right">cmH2O</th>
-                  <th className="p-2 text-left">R2 Dir</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,21 +214,8 @@ export function SessionReport({ session }: { session: Session }) {
                       {num(r.respRate)}
                     </td>
                     <td className="p-2 text-right font-mono">
-                      {num(r.airflowValue)}
-                    </td>
-                    <td className="p-2 text-right font-mono">
-                      {num(r.respBaseline)}
-                    </td>
-                    <td className="p-2 text-right font-mono">
-                      {num(r.respDiffAbs)}
-                    </td>
-                    <td className="p-2 text-right font-mono">
-                      {num(r.micAirValue)}
-                    </td>
-                    <td className="p-2 text-right font-mono">
                       {num(r.resp2Adc)}
                     </td>
-                    <td className="p-2">{boolText(r.resp2Positive)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -269,9 +258,4 @@ function Kpi({ title, s }: { title: string; s: MetricStats }) {
 
 function num(v: unknown) {
   return typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : "—";
-}
-function boolText(v: unknown) {
-  if (v === true) return "Positiva";
-  if (v === false) return "Negativa";
-  return "—";
 }
