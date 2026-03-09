@@ -26,7 +26,6 @@ import type { Session, SessionData } from "../session.interface";
 type ChartRow = {
   session: string;
   date: string;
-  avgAirflow: number;
   avgBpm: number;
   avgMic: number;
   avgRespRate: number;
@@ -79,7 +78,6 @@ export function SessionCharts() {
         date: toDateStr(session.startedAt),
 
         // Promedios robustos (ignoran null/NaN)
-        avgAirflow: avgOf(records, (r) => r.airflowValue ?? null),
         avgBpm: avgOf(records, (r) => r.bpm ?? null),
         avgMic: avgOf(records, (r) => r.micAirValue ?? null), // legado
         avgRespRate: avgOf(records, (r) => r.respRate ?? null),
@@ -106,7 +104,6 @@ export function SessionCharts() {
 
   // Paleta por variable (usa CSS vars del tema)
   const sensorConfig = {
-    avgAirflow: { label: "Flujo de Aire", color: "hsl(var(--primary))" },
     avgBpm: {
       label: "Pulso (BPM)",
       color: "hsl(var(--chart-2, var(--secondary)))",
@@ -144,14 +141,12 @@ export function SessionCharts() {
         <CardHeader>
           <CardTitle>Promedio por Sesión</CardTitle>
           <CardDescription>
-            Comparativa de flujo, cardio y respiración: Airflow, BPM, SpO₂ y
-            Resp/min.
+            Comparativa de cardio y respiración: BPM, SpO₂ y Resp/min.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer
             config={{
-              avgAirflow: sensorConfig.avgAirflow,
               avgBpm: sensorConfig.avgBpm,
               avgSpo2: sensorConfig.avgSpo2,
               avgRespRate: sensorConfig.avgRespRate,
@@ -166,13 +161,6 @@ export function SessionCharts() {
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Legend />
 
-                <Line
-                  type="monotone"
-                  dataKey="avgAirflow"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  name={sensorConfig.avgAirflow.label}
-                />
                 <Line
                   type="monotone"
                   dataKey="avgBpm"
@@ -242,18 +230,17 @@ export function SessionCharts() {
         </CardContent>
       </Card>
 
-      {/* === Gráfica 3 — Respiración: señal, variación e input secundario === */}
+      {/* === Gráfica 3 — Respiración: variación e input secundario === */}
       <Card>
         <CardHeader>
-          <CardTitle>Respiración — Señal y Secundario</CardTitle>
+          <CardTitle>Respiración — Variación y Secundario</CardTitle>
           <CardDescription>
-            Airflow vs |Δ| de respiración y ADC del sensor secundario.
+            |Δ| de respiración y ADC del sensor secundario.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer
             config={{
-              avgAirflow: sensorConfig.avgAirflow,
               avgRespDiffAbs: sensorConfig.avgRespDiffAbs,
               avgResp2Adc: sensorConfig.avgResp2Adc,
             }}
@@ -267,13 +254,6 @@ export function SessionCharts() {
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Legend />
 
-                <Line
-                  type="monotone"
-                  dataKey="avgAirflow"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  name={sensorConfig.avgAirflow.label}
-                />
                 <Line
                   type="monotone"
                   dataKey="avgRespDiffAbs"

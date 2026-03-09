@@ -111,7 +111,6 @@ export function SessionCompareModal({
       bpm: computeStats(baseRecords, (r) => r.bpm ?? null),
       spo2: computeStats(baseRecords, (r) => r.spo2 ?? null),
       resp: computeStats(baseRecords, (r) => r.respRate ?? null),
-      air: computeStats(baseRecords, (r) => r.airflowValue ?? null),
     }),
     [baseRecords],
   );
@@ -123,7 +122,6 @@ export function SessionCompareModal({
             bpm: computeStats(compareRecords, (r) => r.bpm ?? null),
             spo2: computeStats(compareRecords, (r) => r.spo2 ?? null),
             resp: computeStats(compareRecords, (r) => r.respRate ?? null),
-            air: computeStats(compareRecords, (r) => r.airflowValue ?? null),
           }
         : null,
     [compareSession, compareRecords],
@@ -143,11 +141,6 @@ export function SessionCompareModal({
               metric: "Resp/min",
               base: baseStats.resp.avg,
               comp: compStats.resp.avg,
-            },
-            {
-              metric: "Flujo Aire",
-              base: baseStats.air.avg,
-              comp: compStats.air.avg,
             },
           ]
         : [],
@@ -172,8 +165,6 @@ export function SessionCompareModal({
         compSpo2: typeof c?.spo2 === "number" ? c.spo2 : null,
         baseResp: typeof b?.respRate === "number" ? b.respRate : null,
         compResp: typeof c?.respRate === "number" ? c.respRate : null,
-        baseAir: typeof b?.airflowValue === "number" ? b.airflowValue : null,
-        compAir: typeof c?.airflowValue === "number" ? c.airflowValue : null,
       });
     }
 
@@ -296,7 +287,7 @@ export function SessionCompareModal({
           ) : (
             <>
               {/* KPI BOXES */}
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-3">
                 <CompareMetricBox
                   title="Pulso (BPM)"
                   base={baseStats.bpm}
@@ -311,11 +302,6 @@ export function SessionCompareModal({
                   title="Resp/min"
                   base={baseStats.resp}
                   comp={compStats.resp}
-                />
-                <CompareMetricBox
-                  title="Flujo Aire"
-                  base={baseStats.air}
-                  comp={compStats.air}
                 />
               </div>
 
@@ -378,16 +364,6 @@ export function SessionCompareModal({
                 compKey="compResp"
                 baseColor={CHART_COLORS.baseResp}
                 compColor={CHART_COLORS.compareResp}
-              />
-
-              {/* Flujo Aire */}
-              <SignalChart
-                title="Evolución Flujo de Aire"
-                data={timeSeriesData}
-                baseKey="baseAir"
-                compKey="compAir"
-                baseColor={CHART_COLORS.base}
-                compColor={CHART_COLORS.compare}
               />
             </>
           )}

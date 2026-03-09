@@ -322,7 +322,6 @@ export function SessionsTable() {
                   : acc;
               }, undefined);
 
-              const stAirflow = stats(r, (x) => x.airflowValue ?? null);
               const stRespRate = stats(r, (x) => x.respRate ?? null);
               const stBpm = stats(r, (x) => x.bpm ?? null);
               const stSpo2 = stats(r, (x) => x.spo2 ?? null);
@@ -395,7 +394,7 @@ export function SessionsTable() {
 
                     <CardContent className="space-y-4">
                       {/* KPIs */}
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                         <MetricBox
                           icon={<Heart className="h-4 w-4" />}
                           title="Pulso (BPM)"
@@ -419,14 +418,6 @@ export function SessionsTable() {
                           min={stRespRate.min}
                           max={stRespRate.max}
                           valueNow={last?.respRate ?? null}
-                        />
-                        <MetricBox
-                          icon={<Activity className="h-4 w-4" />}
-                          title="Flujo de Aire"
-                          avg={stAirflow.avg}
-                          min={stAirflow.min}
-                          max={stAirflow.max}
-                          valueNow={last?.airflowValue ?? null}
                         />
                       </div>
 

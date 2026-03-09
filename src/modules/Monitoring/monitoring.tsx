@@ -691,21 +691,13 @@ export default function MonitoringPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="text-center p-4 rounded-lg border">
                 <p className="text-base font-medium text-muted-foreground">
                   Frecuencia Cardíaca
                 </p>
                 <p className="text-4xl font-bold text-red-600">
                   {latestReading.bpm ?? "—"} {latestReading.bpm ? "bpm" : ""}
-                </p>
-              </div>
-              <div className="text-center p-4 rounded-lg border">
-                <p className="text-base font-medium text-muted-foreground">
-                  Flujo Respiratorio (Mic)
-                </p>
-                <p className="text-4xl font-bold text-blue-600">
-                  {latestReading.airflowValue ?? "—"}
                 </p>
               </div>
               <div className="text-center p-4 rounded-lg border">
