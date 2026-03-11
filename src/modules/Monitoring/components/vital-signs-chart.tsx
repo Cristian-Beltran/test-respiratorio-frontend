@@ -67,7 +67,7 @@ export function VitalSignsChart({
     });
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -75,15 +75,19 @@ export function VitalSignsChart({
       <CardContent>
         <ChartContainer
           config={{
-            bpm: { label: chartConfig.bpm.label },
-            spo2: { label: chartConfig.spo2.label },
-            respRate: { label: chartConfig.respRate.label },
+            bpm: { label: chartConfig.bpm.label, color: LINE_COLORS.bpm },
+            spo2: { label: chartConfig.spo2.label, color: LINE_COLORS.spo2 },
+            respRate: {
+              label: chartConfig.respRate.label,
+              color: LINE_COLORS.respRate,
+            },
           }}
+          className="h-[360px] w-full lg:h-[400px]"
         >
-          <ResponsiveContainer width="100%" height={320}>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={points}
-              margin={{ top: 8, right: 28, left: 12, bottom: 8 }}
+              margin={{ top: 8, right: 28, left: 8, bottom: 8 }}
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
@@ -117,6 +121,7 @@ export function VitalSignsChart({
                   name={chartConfig.bpm.label}
                   stroke={LINE_COLORS.bpm}
                   strokeWidth={2}
+                  dot={false}
                   activeDot={{ r: 5 }}
                   connectNulls
                 />
@@ -130,6 +135,7 @@ export function VitalSignsChart({
                   name={chartConfig.spo2.label}
                   stroke={LINE_COLORS.spo2}
                   strokeWidth={2}
+                  dot={false}
                   activeDot={{ r: 5 }}
                   connectNulls
                 />

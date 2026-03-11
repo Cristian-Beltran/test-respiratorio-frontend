@@ -680,51 +680,55 @@ export default function MonitoringPage() {
         </div>
       </div>
 
-      {/* Estado actual */}
-      {latestReading && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{patientLabel}</CardTitle>
-            <CardDescription>
-              Última actualización:{" "}
-              {new Date(latestReading.timestamp).toLocaleTimeString("es-ES")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="text-center p-4 rounded-lg border">
-                <p className="text-base font-medium text-muted-foreground">
-                  Frecuencia Cardíaca
-                </p>
-                <p className="text-4xl font-bold text-red-600">
-                  {latestReading.bpm ?? "—"} {latestReading.bpm ? "bpm" : ""}
-                </p>
-              </div>
-              <div className="text-center p-4 rounded-lg border">
-                <p className="text-base font-medium text-muted-foreground">
-                  SpO₂
-                </p>
-                <p className="text-4xl font-bold text-green-600">
-                  {latestReading.spo2 ?? "—"}
-                  {latestReading.spo2 ? "%" : ""}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Gráficos RT */}
       {rtAsSessionData.length > 0 && (
         <div className="space-y-6">
-          <VitalSignsChart
-            data={rtAsSessionData}
-            title={`Signos Vitales – ${patientLabel}`}
-            description="Stream por MQTT (WS)"
-            showBpm
-            showSpo2
-            showRespRate
-          />
+          <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)] xl:items-stretch">
+            {latestReading && (
+              <Card className="xl:sticky xl:top-6">
+                <CardHeader>
+                  <CardTitle>{patientLabel}</CardTitle>
+                  <CardDescription>
+                    Última actualización:{" "}
+                    {new Date(latestReading.timestamp).toLocaleTimeString(
+                      "es-ES",
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4">
+                    <div className="rounded-lg border p-4 text-center">
+                      <p className="text-base font-medium text-muted-foreground">
+                        Frecuencia Cardíaca
+                      </p>
+                      <p className="text-4xl font-bold text-blue-600">
+                        {latestReading.bpm ?? "—"}{" "}
+                        {latestReading.bpm ? "bpm" : ""}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-4 text-center">
+                      <p className="text-base font-medium text-muted-foreground">
+                        SpO₂
+                      </p>
+                      <p className="text-4xl font-bold text-green-600">
+                        {latestReading.spo2 ?? "—"}
+                        {latestReading.spo2 ? "%" : ""}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <VitalSignsChart
+              data={rtAsSessionData}
+              title={`Signos Vitales – ${patientLabel}`}
+              description="Stream por MQTT (WS)"
+              showBpm
+              showSpo2
+              showRespRate
+            />
+          </div>
           <BreathingPatternChart
             data={rtAsSessionData}
             title="Patrón Respiratorio – Tiempo Real"
